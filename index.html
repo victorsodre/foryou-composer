@@ -1,0 +1,1257 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>For You Composer · @ovictor</title>
+<meta name="description" content="Score a post against the X For You ranking — weights verified from xai-org/x-algorithm (param.rs). Engine shared with the /foryou skill.">
+<style>
+  :root {
+    --bg: #0a0a0b;
+    --bg-elev: #111214;
+    --card: #16181c;
+    --card-2: #1c1f24;
+    --line: #2f3336;
+    --line-2: #3d4248;
+    --text: #e7e9ea;
+    --muted: #8b98a5;
+    --dim: #5b6570;
+    --cyan: #22d3ee;
+    --cyan-dim: rgba(34, 211, 238, .14);
+    --violet: #7c3aed;
+    --violet-dim: rgba(124, 58, 237, .16);
+    --red: #f4212e;
+    --red-dim: rgba(244, 33, 46, .12);
+    --amber: #f59e0b;
+    --ok: #00ba7c;
+    --ok-dim: rgba(0, 186, 124, .12);
+    --like-dim: .32;
+    --r: 3px;
+    --font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Inter, Roboto, Helvetica, Arial, sans-serif;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    --sidebar: 220px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font-family: var(--font); }
+  body { display: flex; min-height: 100%; }
+  button, input, textarea, select { font: inherit; color: inherit; }
+  a { color: var(--cyan); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  .app { display: grid; grid-template-columns: var(--sidebar) 1fr; width: 100%; min-height: 100%; }
+  aside {
+    border-right: 1px solid var(--line);
+    padding: 18px 14px 20px;
+    display: flex; flex-direction: column; gap: 22px;
+    position: sticky; top: 0; height: 100vh;
+  }
+  .brand { display: flex; align-items: center; gap: 10px; padding: 0 8px; }
+  .mark {
+    width: 28px; height: 28px; border-radius: var(--r);
+    background: linear-gradient(135deg, var(--cyan), var(--violet));
+    box-shadow: 0 0 0 1px rgba(255,255,255,.06);
+  }
+  .brand h1 { font-size: 15px; margin: 0; letter-spacing: -.02em; font-weight: 700; }
+  .brand small { display: block; color: var(--muted); font-size: 11px; font-weight: 500; margin-top: 1px; }
+  .vtag {
+    margin: -12px 8px 0; font-family: var(--mono); font-size: 10px; color: var(--dim);
+    border: 1px solid var(--line); border-radius: var(--r); padding: 3px 6px; width: max-content;
+  }
+  .vtag b { color: var(--cyan); font-weight: 600; }
+
+  .langs { display: flex; gap: 6px; padding: 0 8px; }
+  .lang {
+    border: 1px solid var(--line); background: transparent; border-radius: var(--r);
+    padding: 4px 8px; cursor: pointer; font-size: 14px; line-height: 1;
+  }
+  .lang[aria-pressed="true"] { border-color: var(--cyan); box-shadow: 0 0 0 1px var(--cyan); }
+
+  nav { display: flex; flex-direction: column; gap: 4px; }
+  nav button {
+    text-align: left; background: transparent; border: 0; border-radius: 999px;
+    padding: 10px 12px; cursor: pointer; color: var(--text); font-weight: 600; font-size: 15px;
+  }
+  nav button:hover { background: var(--card); }
+  nav button[aria-current="page"] { color: var(--cyan); }
+
+  .aside-foot { margin-top: auto; padding: 0 8px; font-size: 11px; color: var(--dim); line-height: 1.45; }
+
+  main { padding: 22px 28px 48px; max-width: 1100px; width: 100%; }
+  .view { display: none; }
+  .view.on { display: block; }
+
+  .stage {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 330px;
+    gap: 18px;
+    align-items: start;
+  }
+
+  .composer {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 14px 16px 12px;
+  }
+  .row { display: flex; gap: 12px; }
+  .avatar {
+    width: 40px; height: 40px; border-radius: 999px; flex: none;
+    background: radial-gradient(circle at 30% 30%, var(--cyan), var(--violet) 70%);
+    opacity: .85;
+  }
+  .compose { flex: 1; min-width: 0; }
+  textarea {
+    width: 100%; min-height: 148px; resize: vertical;
+    background: transparent; border: 0; outline: none;
+    font-size: 20px; line-height: 1.35; letter-spacing: -.02em;
+  }
+  textarea::placeholder { color: var(--dim); }
+
+  .meta {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 8px 0 0; border-top: 1px solid var(--line); margin-top: 8px;
+  }
+  .count { font-variant-numeric: tabular-nums; font-size: 13px; color: var(--muted); }
+  .count.warn { color: var(--amber); }
+  .count.over { color: var(--red); }
+
+  .ctx {
+    margin-top: 12px;
+    display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+  }
+  .tog, .num {
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    background: var(--bg-elev); border: 1px solid var(--line); border-radius: var(--r);
+    padding: 8px 10px; font-size: 12px; color: var(--muted);
+  }
+  .tog input, .num input { accent-color: var(--cyan); }
+  .num input[type="number"] {
+    width: 52px; background: var(--card); border: 1px solid var(--line);
+    border-radius: var(--r); padding: 3px 6px; text-align: right;
+  }
+  .num input[type="range"] { width: 90px; }
+  .num .pct { font-family: var(--mono); font-size: 11px; color: var(--cyan); min-width: 32px; text-align: right; }
+  .span2 { grid-column: 1 / -1; }
+
+  .panel {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 14px 14px 12px;
+  }
+  .panel h2 { margin: 0 0 12px; font-size: 13px; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); font-weight: 700; }
+
+  .hero { display: flex; gap: 20px; align-items: flex-end; margin-bottom: 10px; }
+  .hero .col .n {
+    font-size: 40px; font-weight: 750; letter-spacing: -.04em; line-height: 1;
+    background: linear-gradient(135deg, var(--cyan), #fff 55%, var(--violet));
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .hero .col.oon .n { background: none; -webkit-text-fill-color: currentColor; color: var(--text); }
+  .hero .col .t { font-size: 10.5px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin-top: 4px; }
+  .hero .lbl { margin-left: auto; font-size: 12px; color: var(--muted); text-align: right; max-width: 110px; }
+
+  .meter { height: 6px; background: #22262b; border-radius: 99px; overflow: hidden; margin-bottom: 14px; }
+  .meter > i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--violet), var(--cyan)); transition: width .18s ease; }
+
+  .heads { display: flex; flex-direction: column; gap: 10px; }
+  .head .top { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 4px; }
+  .head .top b { font-weight: 600; }
+  .head .top span { color: var(--muted); font-variant-numeric: tabular-nums; font-family: var(--mono); font-size: 11px; }
+  .bar { height: 5px; background: #22262b; border-radius: 99px; overflow: hidden; }
+  .bar > i { display: block; height: 100%; width: 0; background: var(--cyan); transition: width .18s ease; }
+  .head.fav { opacity: var(--like-dim); }
+  .head.fav .bar > i { background: var(--dim); }
+  .like-note { font-size: 11px; color: var(--dim); margin: 2px 0 0; }
+
+  .mults { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
+  .chip {
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 12px; color: var(--muted);
+  }
+  .chip code { font-family: var(--mono); color: var(--cyan); font-size: 11px; }
+
+  .mono-card {
+    margin-top: 12px; padding: 10px 10px 10px 12px; position: relative;
+    background: var(--bg-elev); border: 1px solid var(--line); border-radius: var(--r);
+    font-size: 12px; color: var(--muted); line-height: 1.5;
+  }
+  .mono-card::before {
+    content: ""; position: absolute; left: -1px; top: -1px; bottom: -1px; width: 2px;
+    background: linear-gradient(180deg, var(--cyan), var(--violet)); border-radius: 2px;
+  }
+  .mono-card b.ok { color: var(--ok); }
+  .mono-card b.bad { color: var(--red); }
+  .mono-card .mtitle { display: block; font-size: 10.5px; text-transform: uppercase; letter-spacing: .05em; color: var(--dim); margin-bottom: 3px; }
+
+  .risk {
+    display: none; margin-top: 12px; padding: 10px;
+    background: var(--red-dim); border: 1px solid rgba(244,33,46,.35);
+    border-radius: var(--r); font-size: 12px; color: #ff8a90; line-height: 1.45;
+  }
+  .risk.on { display: block; }
+  .risk b { color: var(--red); }
+
+  .cb-warn {
+    display: none; margin-top: 10px; padding: 9px 10px;
+    background: rgba(245,158,11,.1); border: 1px solid rgba(245,158,11,.35);
+    border-radius: var(--r); font-size: 12px; color: #fbbf24; line-height: 1.45;
+  }
+  .cb-warn.on { display: block; }
+
+  .coach {
+    margin-top: 14px;
+    background: var(--bg-elev);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 12px;
+  }
+  .coach h3 { margin: 0 0 8px; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+  .checks { display: flex; flex-direction: column; gap: 6px; }
+  .ck { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+  .dot { width: 8px; height: 8px; border-radius: 99px; background: var(--dim); flex: none; }
+  .ck.pass .dot { background: var(--ok); }
+  .ck.fail .dot { background: var(--red); }
+
+  .actions { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+  .btn {
+    border: 1px solid var(--line); background: var(--card-2); border-radius: 999px;
+    padding: 8px 12px; cursor: pointer; font-size: 13px; font-weight: 650;
+  }
+  .btn:hover { border-color: var(--cyan); }
+  .btn.primary { background: var(--text); color: #000; border-color: transparent; }
+  .btn.primary:hover { opacity: .9; }
+
+  details.config {
+    margin-top: 18px; background: var(--card); border: 1px solid var(--line); border-radius: 8px;
+  }
+  details.config > summary {
+    cursor: pointer; list-style: none; padding: 12px 14px;
+    display: flex; align-items: center; gap: 10px;
+    font-size: 13px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--muted);
+  }
+  details.config > summary::-webkit-details-marker { display: none; }
+  details.config > summary::after { content: "+"; margin-left: auto; color: var(--dim); font-size: 16px; }
+  details.config[open] > summary::after { content: "–"; }
+  .custom-pill {
+    display: none; font-family: var(--mono); font-size: 10px; color: var(--amber);
+    border: 1px solid rgba(245,158,11,.4); border-radius: 999px; padding: 2px 8px; text-transform: none; letter-spacing: 0;
+  }
+  .custom-pill.on { display: inline-block; }
+  .config-body { padding: 0 14px 14px; }
+  .config-note { font-size: 12px; color: var(--dim); margin: 0 0 10px; line-height: 1.5; }
+  .pgroup { margin: 12px 0 6px; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--dim); }
+  .paramgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+  .param {
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    background: var(--bg-elev); border: 1px solid var(--line); border-radius: var(--r);
+    padding: 7px 9px; font-size: 12px; color: var(--muted); min-width: 0;
+  }
+  .param code { font-family: var(--mono); font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+  .param input {
+    width: 58px; flex: none; background: var(--card); border: 1px solid var(--line);
+    border-radius: var(--r); padding: 3px 6px; text-align: right; font-family: var(--mono); font-size: 11px;
+  }
+  .param input:focus { outline: none; border-color: var(--cyan); }
+
+  .prose { max-width: 680px; }
+  .prose h2 { font-size: 22px; letter-spacing: -.03em; margin: 0 0 10px; }
+  .prose h3 { font-size: 15px; margin: 22px 0 8px; }
+  .prose p, .prose li { color: var(--muted); font-size: 14.5px; line-height: 1.55; }
+  .prose ul { padding-left: 18px; }
+  .prose code { font-family: var(--mono); font-size: 12px; color: var(--cyan); }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; margin: 10px 0 16px; }
+  th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--line); }
+  th { color: var(--muted); font-weight: 600; }
+  td:last-child, th:last-child { text-align: right; font-variant-numeric: tabular-nums; font-family: var(--mono); font-size: 12px; }
+
+  .foot {
+    margin-top: 28px; padding-top: 14px; border-top: 1px solid var(--line);
+    font-size: 12px; color: var(--dim); line-height: 1.5; max-width: 760px;
+  }
+  .disc { color: var(--muted); }
+
+  dialog {
+    border: 1px solid var(--line); background: var(--card); color: var(--text);
+    border-radius: 8px; width: min(640px, calc(100vw - 32px));
+    padding: 0;
+  }
+  dialog::backdrop { background: rgba(0,0,0,.62); }
+  .dlg-h { display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; border-bottom: 1px solid var(--line); }
+  .dlg-h h3 { margin: 0; font-size: 15px; }
+  .dlg-b { padding: 12px 14px 16px; max-height: 70vh; overflow: auto; }
+  .brk { font-family: var(--mono); font-size: 12px; line-height: 1.55; color: var(--muted); white-space: pre-wrap; }
+
+  .toast {
+    position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%) translateY(8px);
+    background: var(--card-2); border: 1px solid var(--cyan); border-radius: var(--r);
+    color: var(--text); font-size: 13px; padding: 9px 14px; opacity: 0; pointer-events: none;
+    transition: opacity .18s ease, transform .18s ease; z-index: 50;
+  }
+  .toast.on { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  @media (max-width: 900px) {
+    .app { grid-template-columns: 1fr; }
+    aside { position: static; height: auto; border-right: 0; border-bottom: 1px solid var(--line); }
+    nav { flex-direction: row; flex-wrap: wrap; }
+    .stage { grid-template-columns: 1fr; }
+    .ctx { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside>
+    <div class="brand">
+      <div class="mark" aria-hidden="true"></div>
+      <div>
+        <h1>For You Composer</h1>
+        <small data-i="tagline">method, not hype</small>
+      </div>
+    </div>
+    <div class="vtag">engine <b>0.1</b> · xai-org/x-algorithm</div>
+    <div class="langs" role="group" aria-label="Language">
+      <button class="lang" type="button" data-lang="en" aria-pressed="true" title="English">🇺🇸</button>
+      <button class="lang" type="button" data-lang="pt" aria-pressed="false" title="Português">🇧🇷</button>
+    </div>
+    <nav>
+      <button type="button" data-nav="composer" aria-current="page" data-i="navComposer">Composer</button>
+      <button type="button" data-nav="how" data-i="navHow">How scoring works</button>
+      <button type="button" data-nav="about" data-i="navAbout">About</button>
+    </nav>
+    <div class="aside-foot" data-i="asideFoot">In-memory only. No analytics. Same engine as the /foryou skill.</div>
+  </aside>
+
+  <main>
+    <section class="view on" id="view-composer">
+      <div class="stage">
+        <div>
+          <div class="composer">
+            <div class="row">
+              <div class="avatar" title="@ovictor"></div>
+              <div class="compose">
+                <textarea id="text" maxlength="25000" placeholder="" data-ph="ph"></textarea>
+                <div class="meta">
+                  <span class="count" id="count">0 / 280</span>
+                  <button class="btn primary" type="button" id="postFake" data-i="post">Post</button>
+                </div>
+              </div>
+            </div>
+            <div class="ctx">
+              <label class="tog"><span data-i="hasImage">Has image?</span><input type="checkbox" id="hasImage"></label>
+              <label class="tog"><span data-i="hasVideo">Has video?</span><input type="checkbox" id="hasVideo"></label>
+              <label class="tog span2" id="vidRow" style="display:none"><span data-i="vid10">Video ≥ 10s?</span><input type="checkbox" id="vid10"></label>
+              <label class="tog"><span data-i="isThread">Is a thread?</span><input type="checkbox" id="isThread"></label>
+              <label class="num"><span data-i="postsHour">Posts already this hour</span><input type="number" id="postsHour" min="0" max="20" value="0"></label>
+              <label class="tog"><span data-i="isRepost">Repost / not original?</span><input type="checkbox" id="isRepost"></label>
+              <label class="tog"><span data-i="isReply">Body is a reply?</span><input type="checkbox" id="isReply"></label>
+              <label class="num span2"><span data-i="mutuals">Mutual-follower share</span>
+                <span style="display:flex;align-items:center;gap:8px"><input type="range" id="mutuals" min="0" max="100" step="5" value="20"><span class="pct" id="mutualsPct">20%</span></span>
+              </label>
+              <label class="tog span2"><span data-i="secondInFeed">Treat as 2nd same-author in feed</span><input type="checkbox" id="forceSecond"></label>
+            </div>
+          </div>
+
+          <div class="coach">
+            <h3 data-i="coachTitle">Coach checklist</h3>
+            <div class="checks" id="checks"></div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h2 data-i="panelTitle">For You potential</h2>
+          <div class="hero">
+            <div class="col"><div class="n" id="inN">—</div><div class="t" data-i="inLbl">in-network</div></div>
+            <div class="col oon"><div class="n" id="oonN">—</div><div class="t" data-i="oonLbl">out-of-network</div></div>
+            <div class="lbl" id="totalLbl" data-i="totalLbl">Empty draft. Start writing.</div>
+          </div>
+          <div class="meter"><i id="totalBar"></i></div>
+          <div class="heads" id="heads"></div>
+          <div class="mults">
+            <div class="chip"><span data-i="sameLbl">Same-author decay</span><code id="sameCode">×1.0000</code></div>
+            <div class="chip"><span data-i="oonFactorLbl">Out-of-network factor</span><code id="oonCode">×0.75</code></div>
+            <div class="chip"><span data-i="topicLbl">Topic-only OON factor</span><code id="topicCode">×0.50</code></div>
+          </div>
+          <div class="mono-card" id="monoCard">
+            <span class="mtitle" data-i="monoTitle">Monetization · Original Content Rewards</span>
+            <span id="monoBody">—</span>
+          </div>
+          <div class="cb-warn" id="cbWarn"></div>
+          <div class="risk" id="risk"></div>
+          <div class="actions">
+            <button class="btn" type="button" id="breakdownBtn" data-i="breakdown">Score breakdown</button>
+            <button class="btn" type="button" id="copyCmd" data-i="copyCmd">Copy skill command</button>
+          </div>
+        </div>
+      </div>
+
+      <details class="config">
+        <summary><span data-i="configTitle">Engine params · configurator</span><span class="custom-pill" id="customPill">custom</span></summary>
+        <div class="config-body">
+          <p class="config-note" data-i="configNote">Live values from <code>param.rs</code>. Tune to test hypotheses — the score updates instantly. Custom params stay in this tab only; the skill always runs stock param.rs.</p>
+          <div class="pgroup" data-i="pgPos">Positive weights</div>
+          <div class="paramgrid" id="pgridPos"></div>
+          <div class="pgroup" data-i="pgNeg">Negative weights</div>
+          <div class="paramgrid" id="pgridNeg"></div>
+          <div class="pgroup" data-i="pgAdj">Adjustments &amp; calibration</div>
+          <div class="paramgrid" id="pgridAdj"></div>
+          <div class="actions"><button class="btn" type="button" id="resetParams" data-i="resetParams">Reset to param.rs</button></div>
+        </div>
+      </details>
+    </section>
+
+    <section class="view prose" id="view-how">
+      <h2 data-i="howTitle">How scoring works</h2>
+      <p data-i="howLead"></p>
+
+      <h3 data-i="howPTitle">The 2026 pipeline</h3>
+      <p data-i="howP1"></p>
+
+      <h3 data-i="howVTitle">Phoenix heads (the real list)</h3>
+      <ul>
+        <li data-i="v1"></li>
+        <li data-i="v2"></li>
+        <li data-i="v3"></li>
+        <li data-i="v4"></li>
+        <li data-i="v5"></li>
+      </ul>
+
+      <h3 data-i="howWTitle">Weights (param.rs, verbatim)</h3>
+      <table>
+        <thead><tr><th data-i="colSignal">Signal</th><th data-i="colW">Weight</th></tr></thead>
+        <tbody id="wtable"></tbody>
+      </table>
+
+      <h3 data-i="howATitle">After the weighted sum</h3>
+      <ul>
+        <li data-i="a1"></li>
+        <li data-i="a2"></li>
+        <li data-i="a3"></li>
+      </ul>
+
+      <h3 data-i="howDTitle">Two systems that kill posts</h3>
+      <ul>
+        <li data-i="d1"></li>
+        <li data-i="d2"></li>
+      </ul>
+
+      <h3 data-i="howMTitle">Monetization (Sep 8, 2026 →)</h3>
+      <ul>
+        <li data-i="m1"></li>
+        <li data-i="m2"></li>
+        <li data-i="m3"></li>
+      </ul>
+
+      <h3 data-i="howHTitle">Text heuristics used here</h3>
+      <ul>
+        <li data-i="h1"></li>
+        <li data-i="h2"></li>
+        <li data-i="h3"></li>
+        <li data-i="h4"></li>
+        <li data-i="h5"></li>
+        <li data-i="h6"></li>
+      </ul>
+    </section>
+
+    <section class="view prose" id="view-about">
+      <h2 data-i="aboutTitle">About</h2>
+      <p data-i="about1"></p>
+      <p data-i="about2"></p>
+      <p data-i="about3"></p>
+      <p data-i="about4"></p>
+      <p>
+        <a href="https://x.com/ovictor" target="_blank" rel="noreferrer">x.com/ovictor</a>
+        ·
+        <a href="https://github.com/victorsodre" target="_blank" rel="noreferrer">github.com/victorsodre</a>
+        ·
+        <a href="https://github.com/xai-org/x-algorithm" target="_blank" rel="noreferrer">xai-org/x-algorithm</a>
+      </p>
+    </section>
+
+    <footer class="foot">
+      <p class="disc" data-i="disclaimer">Weights verified from xai-org/x-algorithm (home-mixer/params/param.rs). Text-to-probability mapping is heuristic; production values can drift via feature switches.</p>
+      <p data-i="builtBy">built by <a href="https://x.com/ovictor" target="_blank" rel="noreferrer">@ovictor</a> · engine shared with the /foryou skill</p>
+    </footer>
+  </main>
+</div>
+
+<dialog id="dlg">
+  <div class="dlg-h">
+    <h3 id="dlgTitle" data-i="breakdown">Score breakdown</h3>
+    <button class="btn" type="button" id="dlgClose">OK</button>
+  </div>
+  <div class="dlg-b"><div class="brk" id="brk"></div></div>
+</dialog>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ============================================================================
+   ENGINE-START (0.1) — verbatim copy of ~/.grok/skills/foryou/scripts/score.mjs
+   (core block: weights → r3 helpers; only `export ` removed).
+   Keep the two in sync. Parity test:
+     awk '/ENGINE-START/{f=1;next} /ENGINE-END/{f=0} f' index.html > /tmp/e.js
+   then compare scoreDraft() outputs against score.mjs on the same inputs.
+   ========================================================================= */
+// ---------------------------------------------------------------- weights (param.rs)
+const W = {
+  fav: 0.5,
+  reply: 5.0,
+  replyMutualBoost: 15.0, // BidirectionalFollowReplyWeightBoost
+  retweet: 1.0,
+  quote: 5.0,
+  share: 2.0, // share button
+  shareDm: 5.0,
+  shareCopyLink: 20.0, // largest positive weight in the file
+  followAuthor: 4.0,
+  click: 0.4,
+  openLink: 0.2,
+  photoExpand: 0.05,
+  videoOpen: 0.05,
+  vqv: 0.05, // video quality view (video ≥ 10s)
+  dwellContPerSec: 0.004, // ContDwellTimeWeight
+  profileClick: 0.0,
+  neg: { notInterested: -43.2, block: -31.2, mute: -58.8, report: -234.0, notDwelled: -0.02 },
+};
+
+const ADJ = {
+  authorDecay: 0.5, // AuthorDiversityDecay
+  authorFloor: 0.25, // AuthorDiversityFloor
+  oon: 0.75, // OonWeightFactor
+  topicOon: 0.5, // TopicOonWeightFactor
+};
+
+const CAL = { K: 6 }; // squash calibration: score = 100·ev/(ev+K). Reference strong post ⇒ ~75. Object so the HTML configurator can tune it live.
+
+// ---------------------------------------------------------------- text signals
+const EMOJI_RE = /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}]/gu;
+const URL_G = /https?:\/\/[^\s]+/gi; // for .match only
+const URL_ONE = /https?:\/\/\S+/i; // for .test (no `g` — global regexes are stateful in .test)
+const HASH_G = /#[\p{L}\p{N}_]+/gu;
+const BAIT_RE =
+  /\b(like if|like this|follow me|follow for|rt this|rt if|retweet if|smash (the )?like|drop a like|link in bio|curte a[ií]|segue l[aá]|d[aá] (um )?rt|marca (um|a) amigo)\b/i;
+const Q_END = /[?？]\s*$/;
+const REAL_Q = /\b(what|why|how|when|where|who|which|should|would|could|is|are|do|does|did|can|o que|por ?que|como|quando|onde|qual|quais|quem|ser[aá]|vale|cabe|faz sentido|concorda|discorda|e voc[eê]s?|ou n[aã]o)\b/i;
+const CODEISH =
+  /```|`[^`]+`|\bprompt\b|\bconsole\b|\bfunction\b|\bconst\b|\bnpm\b|\bnpx\b|\bpnpm\b|\bgit\b|\bsql\b|\bapi\b|\btypescript\b|\breact\b|\bnext\.?js\b|\bunreal\b|\bv-?ray\b|^\s*[-*]\s|^\s*\d+[.)]\s/im;
+const NUMBY = /\d|%/;
+const UTIL =
+  /\b(guide|guia|checklist|table|tabela|repo|github|resource|recurso|template|how to|como fazer|passo a passo|tutorial|m[eé]todo|f[oó]rmula|atalho|dica|cheat ?sheet|docs?|workflow|setup)\b/i;
+
+function countEmoji(s) {
+  // Grapheme-aware when available (Node ≥ 16), so 👨‍👩‍👧 counts once, not thrice.
+  if (typeof Intl !== "undefined" && Intl.Segmenter) {
+    let n = 0;
+    for (const { segment } of new Intl.Segmenter("und", { granularity: "grapheme" }).segment(s)) {
+      if (EMOJI_RE.test(segment)) n++;
+      EMOJI_RE.lastIndex = 0;
+    }
+    return n;
+  }
+  return (s.match(EMOJI_RE) || []).length;
+}
+
+function analyze(text) {
+  const trimmed = (text || "").trim();
+  const chars = [...trimmed].length;
+  const lines = trimmed.split(/\n/);
+  const first = (lines[0] || "").trim();
+  const last = (lines.filter((l) => l.trim()).pop() || "").trim();
+  const urls = trimmed.match(URL_G) || [];
+  const hashes = (trimmed.match(HASH_G) || []).length;
+  const emojis = countEmoji(trimmed);
+  const letters = trimmed.replace(/[^\p{L}]/gu, "");
+  const uppers = letters.replace(/[^\p{Lu}]/gu, "");
+  const capsRatio = letters.length ? uppers.length / letters.length : 0;
+
+  const mid = trimmed.slice(0, Math.floor(trimmed.length * 0.7));
+  const linkMid = urls.some((u) => mid.includes(u));
+  const linkEnd = urls.length > 0 && !linkMid;
+
+  const question = Q_END.test(last) && (REAL_Q.test(last) || [...last].length > 12);
+  const softQuestion = !question && last.includes("?");
+  const saveable = CODEISH.test(trimmed) || (NUMBY.test(trimmed) && /[-*•]|\d+[.)]/.test(trimmed));
+  const numbers = NUMBY.test(trimmed);
+  const util = UTIL.test(trimmed) || /github\.com/i.test(trimmed);
+  const printable = first.length >= 18 && first.length <= 90 && !URL_ONE.test(first);
+  const hook = first.length >= 24 && first.length <= 110;
+
+  const baitPhrase = BAIT_RE.test(trimmed);
+  const tooManyHash = hashes > 2;
+  const tooManyEmoji = emojis >= 6 || (chars > 0 && emojis / Math.max(chars, 1) > 0.12);
+  const allCaps = letters.length >= 12 && capsRatio > 0.62;
+
+  const risks = [];
+  if (allCaps) risks.push("ALL CAPS");
+  if (baitPhrase) risks.push("like/follow/RT bait");
+  if (tooManyHash) risks.push("hashtag spam (>2)");
+  if (tooManyEmoji) risks.push("emoji spam");
+  if (urls.length > 0) risks.push("link in body \u2014 move to first reply");
+
+  const baitSignals = [allCaps, baitPhrase, tooManyHash, tooManyEmoji].filter(Boolean).length;
+
+  return {
+    trimmed, chars, first, last, urls: urls.length, hashes, emojis, capsRatio,
+    linkMid, linkEnd, question, softQuestion, saveable, numbers, util, printable, hook,
+    bait: baitSignals > 0, baitLevel: baitSignals >= 2 || baitPhrase ? 2 : baitSignals, risks,
+  };
+}
+
+// ---------------------------------------------------------------- propensities (relative, 0–1)
+function propensities(A, o, notes) {
+  const p = {};
+
+  // reply — a real judgment question is the one lever writing controls directly
+  p.reply = 0.08;
+  if (A.question) { p.reply += 0.35; notes.push("+ reply: real question at the end"); }
+  else if (A.softQuestion) { p.reply += 0.12; notes.push("+ reply: '?' without a clear interrogative"); }
+  if (o.isThread) p.reply += 0.04;
+
+  // amplify — retweet (1.0) + quote (5.0): quotable takes travel
+  p.amplify = 0.06;
+  if (A.printable) p.amplify += 0.08;
+  if (A.util) p.amplify += 0.08;
+  if (A.numbers && A.chars > 80) p.amplify += 0.04;
+
+  // share via copy link (20.0!) — people copy links to useful, referencable posts
+  p.shareCopy = 0.04;
+  if (A.util) { p.shareCopy += 0.3; notes.push("+ share: referencable utility (copy-link weight is 20.0)"); }
+  if (A.saveable) p.shareCopy += 0.12;
+  if (A.linkEnd) { p.shareCopy -= 0.05; notes.push("\u2212 share: link in body \u2014 readers click out instead of copy-linking; move it to the first reply"); }
+  if (A.linkMid) { p.shareCopy -= 0.08; notes.push("\u2212 share: link mid-body interrupts the read \u2014 move it to the first reply"); }
+
+  // share via DM (5.0) + share button (2.0)
+  p.shareDm = 0.05 + (A.util ? 0.1 : 0) + (A.numbers && A.chars > 80 ? 0.05 : 0);
+  p.shareBtn = 0.05 + (A.util ? 0.08 : 0);
+
+  // click into post (0.4) — the hook's job
+  p.click = 0.25;
+  if (A.hook) { p.click += 0.15; notes.push("+ click: hook-length first line"); }
+  if (o.isThread) { p.click += 0.1; notes.push("+ click: thread opener"); }
+  if (A.chars < 40 && !o.hasImage && !o.hasVideo) { p.click -= 0.1; notes.push("− attention: < 40 chars and no media"); }
+
+  // continuous dwell — seconds, paid at 0.004/s (small but real)
+  let dwellSec = 2 + A.chars / 40;
+  if (o.hasImage) dwellSec += 2;
+  if (o.hasVideo && o.vid10) dwellSec += 8;
+  if (A.saveable) { dwellSec += 4; notes.push("+ dwell: saveable structure (code/list/numbers) holds the read"); }
+  p.dwellSec = Math.min(dwellSec, 30);
+
+  // media heads
+  p.photoExpand = o.hasImage ? 0.35 : 0;
+  p.videoOpen = o.hasVideo ? 0.4 : 0;
+  p.vqv = o.hasVideo && o.vid10 ? 0.3 : 0;
+
+  // follow author (4.0) — utility posts convert profile visits into follows
+  p.follow = 0.02 + (A.util ? 0.06 : 0) + (A.printable ? 0.02 : 0);
+
+  // fav (0.5) — decorative, computed for honesty
+  p.fav = 0.3 + (A.printable ? 0.1 : 0) + (o.hasImage ? 0.08 : 0) + (A.bait ? 0.05 : 0);
+
+  // open link (0.2)
+  p.openLink = A.linkEnd || A.linkMid ? 0.15 : 0; // real head, kept honest \u2014 but small; the link tax lives in shareCopy
+
+  // negative propensities — small p, huge weights; dwell-regret gates amplify these in prod
+  if (A.baitLevel >= 2) {
+    p.notInterested = 0.05; p.mute = 0.03; p.report = 0.002;
+    notes.push("− bait: mute/report propensity up (dwell-regret gates make this fatal in prod)");
+  } else if (A.baitLevel === 1) {
+    p.notInterested = 0.02; p.mute = 0.008; p.report = 0.0005;
+    notes.push("− mild bait signal");
+  } else {
+    p.notInterested = 0.004; p.mute = 0.001; p.report = 0.0001;
+  }
+  p.notDwelled = A.chars < 40 && !o.hasImage && !o.hasVideo ? 0.5 : 0.2;
+
+  Object.keys(p).forEach((k) => { if (k !== "dwellSec") p[k] = Math.max(0, Math.min(1, p[k])); });
+  return p;
+}
+
+// ---------------------------------------------------------------- scoring
+function squash(ev) {
+  if (ev <= 0) return 0;
+  return Math.round((100 * ev) / (ev + CAL.K));
+}
+
+function sameAuthorMult(nAlready, forceSecond) {
+  const n = forceSecond ? Math.max(1, nAlready || 1) : nAlready || 0;
+  return ADJ.authorFloor + (1 - ADJ.authorFloor) * Math.pow(ADJ.authorDecay, n);
+}
+
+function scoreDraft(opts) {
+  const o = {
+    text: opts.text || "",
+    hasImage: !!opts.hasImage,
+    hasVideo: !!opts.hasVideo,
+    vid10: !!opts.vid10,
+    isThread: !!opts.isThread,
+    postsHour: Number.isFinite(Number(opts.postsHour)) ? Math.max(0, Number(opts.postsHour)) : 0,
+    follows: !!opts.follows,
+    forceSecond: !!opts.forceSecond,
+    isRepost: !!opts.isRepost,
+    isReply: !!opts.isReply,
+    mutualShare: Number.isFinite(Number(opts.mutualShare))
+      ? Math.max(0, Math.min(1, Number(opts.mutualShare)))
+      : 0.2,
+  };
+  const A = analyze(o.text);
+  const notes = [];
+
+  if (!A.trimmed) return result(o, A, {}, { ev: 0, heads: zeroHeads() }, notes);
+
+  const p = propensities(A, o, notes);
+
+  // EV per user-visible head group (weights × propensities)
+  const replyW = W.reply + W.replyMutualBoost * o.mutualShare;
+  const heads = {
+    reply: { p: r2(p.reply), ev: r3(replyW * p.reply) },
+    amplify: { p: r2(p.amplify), ev: r3((W.retweet + W.quote) * p.amplify) },
+    share: {
+      p: r2(Math.max(p.shareCopy, p.shareDm, p.shareBtn)),
+      ev: r3(W.shareCopyLink * p.shareCopy + W.shareDm * p.shareDm + W.share * p.shareBtn),
+    },
+    attention: {
+      p: r2(p.click),
+      ev: r3(
+        W.click * p.click + W.dwellContPerSec * p.dwellSec + W.openLink * p.openLink +
+        W.photoExpand * p.photoExpand + W.videoOpen * p.videoOpen + W.vqv * p.vqv
+      ),
+    },
+    follow: { p: r2(p.follow), ev: r3(W.followAuthor * p.follow) },
+    fav: { p: r2(p.fav), ev: r3(W.fav * p.fav) },
+  };
+
+  let ev =
+    heads.reply.ev + heads.amplify.ev + heads.share.ev + heads.attention.ev + heads.follow.ev + heads.fav.ev;
+
+  // negatives
+  const negEv =
+    W.neg.notInterested * p.notInterested + W.neg.mute * p.mute + W.neg.report * p.report +
+    W.neg.notDwelled * p.notDwelled;
+  ev += negEv;
+
+  // clickbait-shaped guard (ClickDwellLowFavRatePenalty): strong hook, empty payload
+  const substance = A.saveable || A.util || (A.numbers && A.chars > 100);
+  if (p.click >= 0.35 && !substance && A.chars < 120) {
+    ev *= 0.85;
+    notes.push("− clickbait-shaped: hook without payload (click-dwell/low-fav penalty exists in prod)");
+  }
+
+  ev = Math.max(0, ev);
+
+  const same = sameAuthorMult(o.postsHour, o.forceSecond);
+  notes.push(`multipliers: same-author ×${same.toFixed(4)} · oon ×${ADJ.oon} · topic-oon ×${ADJ.topicOon}`);
+
+  return result(o, A, p, { ev: r3(ev), negEv: r3(negEv), heads, same }, notes);
+}
+
+function result(o, A, p, S, notes) {
+  const same = S.same ?? sameAuthorMult(o.postsHour, o.forceSecond);
+  const ev = S.ev ?? 0;
+  const checks = {
+    question: !!A.question,
+    save: !!(A.saveable || A.util),
+    print: !!A.printable,
+    vid: !o.hasVideo || !!o.vid10,
+    bait: !A.bait,
+    first: o.postsHour === 0 && !o.forceSecond,
+  };
+  const monetizable = !o.isRepost && !o.isReply;
+  const mNotes = [];
+  if (o.isReply) mNotes.push("replies earn nothing since early 2026 — post this as a standalone post");
+  if (o.isRepost) mNotes.push("reposted/unoriginal content fails the Original Content Rewards test (Sep 8, 2026)");
+  if (monetizable) mNotes.push("payout ∝ qualified impressions (unique Premium home-timeline views, ≥50% visible) — OON reach is the growth lever");
+
+  return {
+    engine: "foryou v2 (xai-org/x-algorithm param.rs)",
+    empty: !A.trimmed,
+    chars: A.chars,
+    first: A.first,
+    last: A.last,
+    heads: S.heads,
+    ev,
+    potential: {
+      inNetwork: squash(ev * same),
+      outOfNetwork: squash(ev * same * ADJ.oon),
+      topicOutOfNetwork: squash(ev * same * ADJ.topicOon),
+    },
+    multipliers: { sameAuthor: r3(same), oon: ADJ.oon, topicOon: ADJ.topicOon },
+    checks,
+    checkCount: Object.values(checks).filter(Boolean).length,
+    signals: {
+      question: A.question, softQuestion: A.softQuestion, saveable: A.saveable, utility: A.util,
+      printableFirstLine: A.printable, hookLength: A.hook, numbers: A.numbers,
+      linkMid: A.linkMid, linkEnd: A.linkEnd, hashtags: A.hashes, emojis: A.emojis,
+    },
+    risks: A.risks,
+    monetization: { eligibleFormat: monetizable, assumedOriginal: !o.isRepost, notes: mNotes },
+    notes,
+    disclaimer:
+      "Weights verified from xai-org/x-algorithm (home-mixer/params/param.rs). Text-to-probability mapping is heuristic; production values can drift via feature switches.",
+  };
+}
+
+function zeroHeads() {
+  const z = { p: 0, ev: 0 };
+  return { reply: { ...z }, amplify: { ...z }, share: { ...z }, attention: { ...z }, follow: { ...z }, fav: { ...z } };
+}
+
+const r2 = (n) => Math.round(n * 100) / 100;
+const r3 = (n) => Math.round(n * 1000) / 1000;
+/* ==== ENGINE-END ========================================================= */
+
+const DEFAULTS = {
+  W: JSON.parse(JSON.stringify(W)),
+  ADJ: JSON.parse(JSON.stringify(ADJ)),
+  CAL: JSON.parse(JSON.stringify(CAL)),
+};
+
+const I18N = {
+  en: {
+    tagline: "method, not hype",
+    navComposer: "Composer",
+    navHow: "How scoring works",
+    navAbout: "About",
+    asideFoot: "In-memory only. No analytics. Same engine as the /foryou skill.",
+    ph: "What’s happening?",
+    post: "Post",
+    hasImage: "Has image?",
+    hasVideo: "Has video?",
+    vid10: "Video ≥ 10s? (required for the video-quality head)",
+    isThread: "Is a thread?",
+    postsHour: "Posts already this hour",
+    isRepost: "Repost / not original?",
+    isReply: "Body is a reply?",
+    mutuals: "Mutual-follower share (lifts reply weight 5→20)",
+    secondInFeed: "Treat as 2nd same-author in feed",
+    coachTitle: "Coach checklist",
+    panelTitle: "For You potential",
+    inLbl: "in-network",
+    oonLbl: "out-of-network",
+    totalLbl: "Empty draft. Start writing.",
+    sameLbl: "Same-author decay",
+    oonFactorLbl: "Out-of-network factor",
+    topicLbl: "Topic-only OON factor",
+    monoTitle: "Monetization · Original Content Rewards",
+    monoEmpty: "Write something first.",
+    monoOk: "<b class='ok'>✓ eligible format</b> — original standalone post. Payout follows qualified Premium impressions, i.e. your out-of-network number.",
+    monoOkRisk: "<b class='ok'>✓ eligible format</b>, but bait is penalized on the payout side too (engagement-farming rules) — fix the risks first.",
+    monoReply: "<b class='bad'>✗ replies earn nothing</b> (since early 2026). Post the idea standalone; the reply is where the link lives.",
+    monoRepost: "<b class='bad'>✗ fails the originality test</b> — reposts/reuploads don’t qualify for Original Content Rewards (Sep 8, 2026).",
+    breakdown: "Score breakdown",
+    copyCmd: "Copy skill command",
+    copied: "Command copied — paste it in the terminal or let /foryou run it",
+    copiedCustom: "Copied. Heads-up: custom params live only here — the skill runs stock param.rs",
+    copyFail: "Clipboard blocked — command shown in the dialog",
+    configTitle: "Engine params · configurator",
+    configNote: "Live values from <code>param.rs</code>. Tune to test hypotheses — the score updates instantly. Custom params stay in this tab only; the skill always runs stock param.rs.",
+    pgPos: "Positive weights",
+    pgNeg: "Negative weights",
+    pgAdj: "Adjustments & calibration",
+    resetParams: "Reset to param.rs",
+    riskTitle: "Mute-bait risk",
+    cbWarn: "Clickbait-shaped: the hook promises more than the body delivers. Prod has an explicit click-dwell/low-fav penalty for this.",
+    emptyHint: "Empty draft. Start writing.",
+    weak: "Thin. Needs a job: reply, reference, or hold the read.",
+    mid: "Readable. One stronger head would lift this.",
+    strong: "Clear job. Ship it — or run the gauntlet for +5.",
+    ckQ: "Real question at the end",
+    ckSave: "Saveable substance (code, list, numbers, utility)",
+    ckPrint: "Printable first line",
+    ckVid: "Video ≥ 10s (or no video)",
+    ckBait: "No mute-bait",
+    ckFirst: "First post of the hour",
+    heads: { reply: "Reply", amplify: "Amplify (RT + quote)", share: "Share (copy-link · DM)", attention: "Attention (click + dwell)", follow: "Follow from post", fav: "Fav (decorative)" },
+    likeNote: "Fav weight is 0.5. A copy-link share is worth 40 likes. Dimmed on purpose.",
+    howTitle: "How scoring works",
+    howLead: "One layer of verified structure + one honest heuristic layer. Structure and weights come from the open-source <code>xai-org/x-algorithm</code> (Jan 2026 drop; Phoenix weights May 2026). The heuristic layer maps your text to action probabilities — that part is ours, and it’s labeled.",
+    howPTitle: "The 2026 pipeline",
+    howP1: "Rust stack, four parts: <b>Home Mixer</b> orchestrates; candidates come from <b>Thunder</b> (accounts you follow) and <b>Phoenix retrieval</b> + SimClusters (accounts you don’t); the <b>Phoenix model</b> (Grok-based transformer) predicts a probability per action; final score = Σ weight × P(action), then adjustments and filters. The engine here mirrors that sum with the real weights.",
+    howVTitle: "Phoenix heads (the real list)",
+    v1: "<b>Engagement:</b> favorite · reply · repost · quote · share · share via DM · share via copy link.",
+    v2: "<b>Clicks:</b> post · profile · link · photo expand · video open · quoted post.",
+    v3: "<b>Attention:</b> video quality view (video ≥ 10s) · dwell · dwell time · click dwell time · active seconds.",
+    v4: "<b>Author / negative:</b> follow author · not interested · mute · block · report · not dwelled.",
+    v5: "There is <b>no bookmark head and no screenshot head</b>. “Reply engaged by author +75” and “reply 13.5” are 2023 numbers — dead. Saveable content still pays, via dwell and copy-link.",
+    howWTitle: "Weights (param.rs, verbatim)",
+    colSignal: "Signal",
+    colW: "Weight",
+    howATitle: "After the weighted sum",
+    a1: "<b>Same-author decay</b> in one feed: 0.25 + 0.75 × 0.5ⁿ after n of your posts already shown → 2nd ×0.625, 3rd ×0.4375, floor 0.25. Spacing beats volume.",
+    a2: "<b>Out-of-network:</b> graph OON ×0.75; topic-matched OON ×0.5. Replies and reposts carry a sub-1 factor even for your followers.",
+    a3: "<b>New-author boost:</b> low-impression authors get lifted toward a target position (PostUnexploredWeight 0.02).",
+    howDTitle: "Two systems that kill posts",
+    d1: "<b>Dwell regret</b> — the “unregretted user-seconds” machinery. Inside its gate: report −60 000, mute −15 000, not-interested −10 000. Rage-bait doesn’t underperform; it poisons the account.",
+    d2: "<b>Click-dwell / low-fav penalty</b> — clicks and dwell with a low fav rate get an explicit penalty. A hook the body doesn’t pay off is punished by the ranking math itself.",
+    howMTitle: "Monetization (Sep 8, 2026 →)",
+    m1: "Revenue Sharing died Sep 7, 2026. <b>Original Content Rewards</b> pays for qualified impressions: unique Premium home-timeline views with ≥50% of the post visible.",
+    m2: "Original = your own voice, analysis, reporting, creativity. Copies, reuploads, simple overlays don’t qualify. <b>Replies earn nothing.</b>",
+    m3: "Same game as ranking: OON reach to Premium readers. No tension between score and payout — don’t bait, ever.",
+    howHTitle: "Text heuristics used here",
+    h1: "Ends with a real judgment question → reply (5.0, up to 20 with mutuals).",
+    h2: "Referencable utility (guia, método, tabela, repo) → share via copy link — the 20.0, biggest lever in the file.",
+    h3: "Code / list / concrete numbers → dwell (active seconds) + copy-link. “Saveable” pays through these two heads now.",
+    h4: "First line 18–90 chars, no URL → click + quotable. 24–110 chars counts as a hook.",
+    h5: "Under 40 chars with no media → non-dwell risk. Link mid-body breaks the read; link belongs in the first reply.",
+    h6: "Strong hook + thin body → clickbait-shaped warning (mirrors the prod penalty).",
+    aboutTitle: "About",
+    about1: "Built by Victor (@ovictor). Daily public practice: AI × 3D × code. Thesis: method, not hype.",
+    about2: "Jan 2026: X open-sourced the Grok-based For You stack (<code>xai-org/x-algorithm</code>) — this time with the real weights in <code>home-mixer/params/param.rs</code>. May 2026: the Phoenix model itself dropped. This tool encodes those values verbatim, plus a labeled heuristic layer for text→probability.",
+    about3: "It does not predict virality. It shows structure: which heads you’re writing for, which multipliers you’re paying, when you’re baiting mute, and whether the post can even earn under Original Content Rewards.",
+    about4: "Two ways to use the same engine: this composer for live manual tuning, or the <code>/foryou</code> skill for the full score → gauntlet → rewrite loop in chat.",
+    disclaimer: "Weights verified from xai-org/x-algorithm (home-mixer/params/param.rs). Text-to-probability mapping is heuristic; production values can drift via feature switches.",
+    builtBy: "built by <a href='https://x.com/ovictor' target='_blank' rel='noreferrer'>@ovictor</a> · engine shared with the /foryou skill",
+  },
+  pt: {
+    tagline: "método, não hype",
+    navComposer: "Composer",
+    navHow: "Como o score funciona",
+    navAbout: "Sobre",
+    asideFoot: "Só memória. Sem analytics. Mesmo engine da skill /foryou.",
+    ph: "O que está acontecendo?",
+    post: "Postar",
+    hasImage: "Tem imagem?",
+    hasVideo: "Tem vídeo?",
+    vid10: "Vídeo ≥ 10s? (obrigatório pro head de video quality)",
+    isThread: "É uma thread?",
+    postsHour: "Posts já feitos nesta hora",
+    isRepost: "Repost / não-original?",
+    isReply: "O corpo é um reply?",
+    mutuals: "Fração de seguidores mútuos (reply pesa 5→20)",
+    secondInFeed: "Tratar como 2º post do mesmo autor no feed",
+    coachTitle: "Coach checklist",
+    panelTitle: "For You potential",
+    inLbl: "in-network",
+    oonLbl: "out-of-network",
+    totalLbl: "Rascunho vazio. Começa a escrever.",
+    sameLbl: "Decay de mesmo autor",
+    oonFactorLbl: "Fator out-of-network",
+    topicLbl: "Fator OON por tópico",
+    monoTitle: "Monetização · Original Content Rewards",
+    monoEmpty: "Escreve algo primeiro.",
+    monoOk: "<b class='ok'>✓ formato monetizável</b> — post original standalone. O payout segue as qualified impressions de Premium, ou seja, o seu número out-of-network.",
+    monoOkRisk: "<b class='ok'>✓ formato monetizável</b>, mas bait é penalizado no payout também (regras anti engagement-farming) — resolve os risks primeiro.",
+    monoReply: "<b class='bad'>✗ reply não rende nada</b> (desde o início de 2026). Posta a ideia como post próprio; o reply é onde mora o link.",
+    monoRepost: "<b class='bad'>✗ reprova no teste de originalidade</b> — repost/reupload não qualifica no Original Content Rewards (8/set/2026).",
+    breakdown: "Score breakdown",
+    copyCmd: "Copiar comando da skill",
+    copied: "Comando copiado — cola no terminal ou deixa o /foryou rodar",
+    copiedCustom: "Copiado. Atenção: params custom vivem só aqui — a skill roda o param.rs original",
+    copyFail: "Clipboard bloqueado — o comando está no dialog",
+    configTitle: "Engine params · configurator",
+    configNote: "Valores vivos do <code>param.rs</code>. Ajusta pra testar hipóteses — o score atualiza na hora. Params custom ficam só nesta aba; a skill sempre roda o param.rs original.",
+    pgPos: "Pesos positivos",
+    pgNeg: "Pesos negativos",
+    pgAdj: "Ajustes & calibração",
+    resetParams: "Resetar pro param.rs",
+    riskTitle: "Risco de mute-bait",
+    cbWarn: "Cara de clickbait: o gancho promete mais do que o corpo entrega. Em produção existe penalidade explícita de click-dwell/low-fav pra isso.",
+    emptyHint: "Rascunho vazio. Começa a escrever.",
+    weak: "Magro. Falta um trabalho: reply, referência ou segurar a leitura.",
+    mid: "Dá pra ler. Um head mais forte levantava.",
+    strong: "Trabalho claro. Posta — ou roda o gauntlet por +5.",
+    ckQ: "Pergunta real no fim",
+    ckSave: "Substância salvável (código, lista, números, utilidade)",
+    ckPrint: "Primeira linha printável",
+    ckVid: "Vídeo ≥ 10s (ou sem vídeo)",
+    ckBait: "Sem mute-bait",
+    ckFirst: "Primeiro post da hora",
+    heads: { reply: "Reply", amplify: "Amplify (RT + quote)", share: "Share (copy-link · DM)", attention: "Attention (click + dwell)", follow: "Follow pelo post", fav: "Fav (decorativo)" },
+    likeNote: "Fav pesa 0.5. Um share por copy-link vale 40 likes. Apagado de propósito.",
+    howTitle: "Como o score funciona",
+    howLead: "Uma camada de estrutura verificada + uma camada heurística honesta. Estrutura e pesos vêm do open-source <code>xai-org/x-algorithm</code> (drop de jan/2026; pesos do Phoenix em maio/2026). A camada heurística mapeia o seu texto pra probabilidades de ação — essa parte é nossa, e está rotulada.",
+    howPTitle: "O pipeline de 2026",
+    howP1: "Stack em Rust, quatro partes: o <b>Home Mixer</b> orquestra; candidatos vêm do <b>Thunder</b> (quem você segue) e do <b>Phoenix retrieval</b> + SimClusters (quem você não segue); o <b>modelo Phoenix</b> (transformer baseado no Grok) prevê uma probabilidade por ação; score final = Σ peso × P(ação), depois ajustes e filtros. O engine daqui espelha essa soma com os pesos reais.",
+    howVTitle: "Heads do Phoenix (a lista real)",
+    v1: "<b>Engajamento:</b> favorite · reply · repost · quote · share · share via DM · share via copy link.",
+    v2: "<b>Cliques:</b> post · profile · link · photo expand · video open · quoted post.",
+    v3: "<b>Atenção:</b> video quality view (vídeo ≥ 10s) · dwell · dwell time · click dwell time · active seconds.",
+    v4: "<b>Autor / negativos:</b> follow author · not interested · mute · block · report · not dwelled.",
+    v5: "<b>Não existe head de bookmark nem de screenshot.</b> “Reply engaged by author +75” e “reply 13.5” são números de 2023 — mortos. Conteúdo salvável continua pagando, via dwell e copy-link.",
+    howWTitle: "Pesos (param.rs, literal)",
+    colSignal: "Sinal",
+    colW: "Peso",
+    howATitle: "Depois da soma ponderada",
+    a1: "<b>Decay de mesmo autor</b> num feed: 0.25 + 0.75 × 0.5ⁿ depois de n posts seus já exibidos → 2º ×0.625, 3º ×0.4375, piso 0.25. Espaçar ganha de volume.",
+    a2: "<b>Out-of-network:</b> OON por grafo ×0.75; OON por tópico ×0.5. Replies e reposts carregam fator abaixo de 1 até pra quem te segue.",
+    a3: "<b>Boost de autor novo:</b> autores com poucas impressions ganham um empurrão (PostUnexploredWeight 0.02).",
+    howDTitle: "Dois sistemas que matam post",
+    d1: "<b>Dwell regret</b> — a máquina dos “unregretted user-seconds”. Dentro do gate: report −60 000, mute −15 000, not-interested −10 000. Rage-bait não rende mal; envenena a conta.",
+    d2: "<b>Penalidade click-dwell / low-fav</b> — clique e dwell altos com taxa de fav baixa levam penalidade explícita. Gancho que o corpo não paga é punido pela própria matemática do ranking.",
+    howMTitle: "Monetização (8/set/2026 →)",
+    m1: "O Revenue Sharing morreu em 7/set/2026. O <b>Original Content Rewards</b> paga por qualified impressions: views únicas de Premium no Home Timeline com ≥50% do post visível.",
+    m2: "Original = sua voz, análise, reportagem, criatividade. Cópia, reupload e overlay simples não qualificam. <b>Reply não rende nada.</b>",
+    m3: "Mesmo jogo do ranking: alcance OON em leitores Premium. Não há tensão entre score e payout — não faça bait, nunca.",
+    howHTitle: "Heurísticas de texto daqui",
+    h1: "Termina com pergunta real de julgamento → reply (5.0, até 20 com mútuos).",
+    h2: "Utilidade referenciável (guia, método, tabela, repo) → share via copy link — o 20.0, maior alavanca do arquivo.",
+    h3: "Código / lista / números concretos → dwell (active seconds) + copy-link. “Salvável” agora paga por esses dois heads.",
+    h4: "Primeira linha 18–90 chars, sem URL → click + citável. 24–110 chars conta como gancho.",
+    h5: "Menos de 40 chars sem mídia → risco de non-dwell. Link no meio quebra a leitura; link mora no primeiro reply.",
+    h6: "Gancho forte + corpo magro → aviso de cara-de-clickbait (espelha a penalidade de produção).",
+    aboutTitle: "Sobre",
+    about1: "Feito por Victor (@ovictor). Prática diária pública: IA × 3D × código. Tese: método, não hype.",
+    about2: "Jan/2026: o X abriu o stack For You baseado no Grok (<code>xai-org/x-algorithm</code>) — desta vez com os pesos reais no <code>home-mixer/params/param.rs</code>. Maio/2026: o próprio modelo Phoenix foi liberado. Esta ferramenta encoda esses valores literalmente, mais uma camada heurística rotulada de texto→probabilidade.",
+    about3: "Não prevê viral. Mostra estrutura: pra quais heads você está escrevendo, quais multiplicadores está pagando, quando está pedindo mute — e se o post sequer pode render no Original Content Rewards.",
+    about4: "Dois jeitos de usar o mesmo engine: este composer pra tuning manual ao vivo, ou a skill <code>/foryou</code> pro loop completo score → gauntlet → rewrite no chat.",
+    disclaimer: "Weights verified from xai-org/x-algorithm (home-mixer/params/param.rs). Text-to-probability mapping is heuristic; production values can drift via feature switches.",
+    builtBy: "built by <a href='https://x.com/ovictor' target='_blank' rel='noreferrer'>@ovictor</a> · engine compartilhado com a skill /foryou",
+  }
+};
+
+const PARAM_DEFS = {
+  pos: [
+    ["shareCopyLink", "ShareViaCopyLink"],
+    ["reply", "Reply"],
+    ["replyMutualBoost", "MutualReplyBoost"],
+    ["quote", "Quote"],
+    ["shareDm", "ShareViaDm"],
+    ["followAuthor", "FollowAuthor"],
+    ["share", "ShareButton"],
+    ["retweet", "Retweet"],
+    ["fav", "Favorite"],
+    ["click", "Click"],
+    ["openLink", "OpenLink"],
+    ["photoExpand", "PhotoExpand"],
+  ],
+  neg: [
+    ["report", "Report"],
+    ["mute", "MuteAuthor"],
+    ["notInterested", "NotInterested"],
+    ["block", "BlockAuthor"],
+  ],
+};
+
+let lang = "en";
+let lastBreakdown = "";
+let lastCmd = "";
+
+const $ = (id) => document.getElementById(id);
+const t = (k) => {
+  const d = I18N[lang];
+  return k.split(".").reduce((a, p) => (a ? a[p] : undefined), d) ?? k;
+};
+
+function isCustom() {
+  return JSON.stringify({ W, ADJ, CAL }) !== JSON.stringify(DEFAULTS);
+}
+
+function applyI18n() {
+  document.documentElement.lang = lang === "pt" ? "pt-BR" : "en";
+  document.querySelectorAll("[data-i]").forEach((el) => {
+    const val = t(el.getAttribute("data-i"));
+    if (typeof val === "string") el.innerHTML = val;
+  });
+  document.querySelectorAll("[data-ph]").forEach((el) => { el.placeholder = t("ph"); });
+  document.querySelectorAll(".lang").forEach((b) => {
+    b.setAttribute("aria-pressed", b.dataset.lang === lang ? "true" : "false");
+  });
+  renderWTable();
+  update();
+}
+
+function renderWTable() {
+  const rows = [
+    ...PARAM_DEFS.pos.map(([k, n]) => [n, W[k]]),
+    ["ContDwellTime (per s)", W.dwellContPerSec],
+    ["VideoOpen / VQV", W.vqv],
+    ["ProfileClick", W.profileClick],
+    ...PARAM_DEFS.neg.map(([k, n]) => [n, W.neg[k]]),
+    ["NotDwelled", W.neg.notDwelled],
+  ];
+  $("wtable").innerHTML = rows
+    .map(([n, w]) => `<tr><td>${n}</td><td>${w > 0 ? "+" : ""}${w}</td></tr>`)
+    .join("");
+}
+
+function buildConfig() {
+  $("pgridPos").innerHTML = PARAM_DEFS.pos
+    .map(([k, n]) => `<label class="param"><code>${n}</code><input type="number" step="0.05" data-w="${k}" value="${W[k]}"></label>`)
+    .join("");
+  $("pgridNeg").innerHTML = PARAM_DEFS.neg
+    .map(([k, n]) => `<label class="param"><code>${n}</code><input type="number" step="0.1" data-neg="${k}" value="${W.neg[k]}"></label>`)
+    .join("");
+  $("pgridAdj").innerHTML = [
+    `<label class="param"><code>OonFactor</code><input type="number" step="0.05" min="0" max="1" data-adj="oon" value="${ADJ.oon}"></label>`,
+    `<label class="param"><code>TopicOonFactor</code><input type="number" step="0.05" min="0" max="1" data-adj="topicOon" value="${ADJ.topicOon}"></label>`,
+    `<label class="param"><code>AuthorDecay</code><input type="number" step="0.05" min="0" max="1" data-adj="authorDecay" value="${ADJ.authorDecay}"></label>`,
+    `<label class="param"><code>AuthorFloor</code><input type="number" step="0.05" min="0" max="1" data-adj="authorFloor" value="${ADJ.authorFloor}"></label>`,
+    `<label class="param"><code>Squash K</code><input type="number" step="0.5" min="0.5" data-cal="K" value="${CAL.K}"></label>`,
+  ].join("");
+  document.querySelectorAll(".param input").forEach((inp) => {
+    inp.addEventListener("input", () => {
+      const v = Number(inp.value);
+      if (!Number.isFinite(v)) return;
+      if (inp.dataset.w) W[inp.dataset.w] = v;
+      else if (inp.dataset.neg) W.neg[inp.dataset.neg] = v;
+      else if (inp.dataset.adj) ADJ[inp.dataset.adj] = v;
+      else if (inp.dataset.cal) CAL[inp.dataset.cal] = v;
+      renderWTable();
+      update();
+    });
+  });
+}
+
+function readOpts() {
+  return {
+    text: $("text").value,
+    hasImage: $("hasImage").checked,
+    hasVideo: $("hasVideo").checked,
+    vid10: $("vid10").checked,
+    isThread: $("isThread").checked,
+    postsHour: Number($("postsHour").value) || 0,
+    forceSecond: $("forceSecond").checked,
+    isRepost: $("isRepost").checked,
+    isReply: $("isReply").checked,
+    mutualShare: Number($("mutuals").value) / 100,
+  };
+}
+
+function update() {
+  const o = readOpts();
+  $("vidRow").style.display = o.hasVideo ? "flex" : "none";
+  $("mutualsPct").textContent = Math.round(o.mutualShare * 100) + "%";
+  const j = scoreDraft(o);
+  const i = I18N[lang];
+
+  $("count").textContent = `${j.chars} / 280`;
+  $("count").className = "count" + (j.chars > 280 ? " over" : j.chars > 240 ? " warn" : "");
+
+  $("inN").textContent = j.empty ? "—" : String(j.potential.inNetwork);
+  $("oonN").textContent = j.empty ? "—" : String(j.potential.outOfNetwork);
+  $("totalBar").style.width = (j.empty ? 0 : j.potential.inNetwork) + "%";
+  $("totalLbl").textContent = j.empty
+    ? i.emptyHint
+    : j.potential.inNetwork >= 70 ? i.strong : j.potential.inNetwork >= 45 ? i.mid : i.weak;
+
+  $("sameCode").textContent = "×" + j.multipliers.sameAuthor.toFixed(4);
+  $("oonCode").textContent = "×" + j.multipliers.oon.toFixed(2);
+  $("topicCode").textContent = "×" + j.multipliers.topicOon.toFixed(2);
+
+  const order = ["reply", "amplify", "share", "attention", "follow", "fav"];
+  const maxEv = Math.max(0.001, ...order.map((k) => j.heads[k].ev));
+  $("heads").innerHTML = order.map((k) => `
+    <div class="head ${k === "fav" ? "fav" : ""}">
+      <div class="top"><b>${i.heads[k]}</b><span>${j.empty ? "—" : "ev " + j.heads[k].ev.toFixed(2)}</span></div>
+      <div class="bar"><i style="width:${j.empty ? 0 : Math.round((j.heads[k].ev / maxEv) * 100)}%"></i></div>
+      ${k === "fav" ? `<div class="like-note">${i.likeNote}</div>` : ""}
+    </div>
+  `).join("");
+
+  $("monoBody").innerHTML = j.empty ? i.monoEmpty
+    : o.isReply ? i.monoReply
+    : o.isRepost ? i.monoRepost
+    : j.risks.length ? i.monoOkRisk
+    : i.monoOk;
+
+  const cb = j.notes.some((n) => n.includes("clickbait-shaped"));
+  $("cbWarn").className = "cb-warn" + (cb ? " on" : "");
+  $("cbWarn").textContent = cb ? i.cbWarn : "";
+
+  const risk = $("risk");
+  if (j.risks.length) {
+    risk.className = "risk on";
+    risk.innerHTML = `<b>${i.riskTitle}</b> — ${j.risks.join(" · ")}<br>mute ${W.neg.mute} · not interested ${W.neg.notInterested} · report ${W.neg.report} · block ${W.neg.block} — plus dwell-regret gates in prod`;
+  } else {
+    risk.className = "risk";
+    risk.innerHTML = "";
+  }
+
+  const checks = [
+    ["ckQ", j.checks.question], ["ckSave", j.checks.save], ["ckPrint", j.checks.print],
+    ["ckVid", j.checks.vid], ["ckBait", j.checks.bait], ["ckFirst", j.checks.first],
+  ];
+  $("checks").innerHTML = checks.map(([k, ok]) =>
+    `<div class="ck ${ok ? "pass" : "fail"}"><i class="dot"></i><span>${t(k)}</span></div>`
+  ).join("");
+
+  $("customPill").className = "custom-pill" + (isCustom() ? " on" : "");
+
+  lastBreakdown = [
+    `FOR YOU COMPOSER — ${j.engine}${isCustom() ? "  [CUSTOM PARAMS]" : ""}`,
+    "",
+    ...j.notes,
+    "",
+    ...order.map((k) => `head ${k.padEnd(10)} p ${String(j.heads[k].p).padEnd(6)} ev ${j.heads[k].ev}`),
+    "",
+    `ev total ${j.ev}`,
+    `potential  in ${j.potential.inNetwork} · oon ${j.potential.outOfNetwork} · topic-oon ${j.potential.topicOutOfNetwork}`,
+    `coach ${j.checkCount}/6${j.risks.length ? " · risks: " + j.risks.join(", ") : ""}`,
+    "",
+    j.disclaimer,
+  ].join("\n");
+
+  buildCmd(o);
+}
+
+function shq(s) { return `'${String(s).replace(/'/g, `'\\''`)}'`; }
+
+function buildCmd(o) {
+  const parts = [`node ~/.grok/skills/foryou/scripts/score.mjs --text ${shq(o.text || "...")}`];
+  if (o.hasImage) parts.push("--image");
+  if (o.hasVideo) parts.push("--video");
+  if (o.vid10) parts.push("--vid10");
+  if (o.isThread) parts.push("--thread");
+  if (o.postsHour > 0) parts.push(`--posts ${o.postsHour}`);
+  if (o.forceSecond) parts.push("--second");
+  if (o.isRepost) parts.push("--repost");
+  if (o.isReply) parts.push("--reply");
+  if (o.mutualShare !== 0.2) parts.push(`--mutuals ${o.mutualShare}`);
+  lastCmd = parts.join(" ");
+}
+
+function toast(msg) {
+  const el = $("toast");
+  el.textContent = msg;
+  el.className = "toast on";
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => { el.className = "toast"; }, 2600);
+}
+
+document.querySelectorAll(".lang").forEach((b) => {
+  b.addEventListener("click", () => { lang = b.dataset.lang; applyI18n(); });
+});
+document.querySelectorAll("[data-nav]").forEach((b) => {
+  b.addEventListener("click", () => {
+    document.querySelectorAll("[data-nav]").forEach((x) => x.removeAttribute("aria-current"));
+    b.setAttribute("aria-current", "page");
+    document.querySelectorAll(".view").forEach((v) => v.classList.remove("on"));
+    $("view-" + b.dataset.nav).classList.add("on");
+  });
+});
+["text", "hasImage", "hasVideo", "vid10", "isThread", "postsHour", "forceSecond", "isRepost", "isReply", "mutuals"].forEach((id) => {
+  $(id).addEventListener("input", update);
+  $(id).addEventListener("change", update);
+});
+$("postFake").addEventListener("click", () => $("text").focus());
+$("breakdownBtn").addEventListener("click", () => {
+  $("dlgTitle").textContent = t("breakdown");
+  $("brk").textContent = lastBreakdown;
+  $("dlg").showModal();
+});
+$("copyCmd").addEventListener("click", async () => {
+  try {
+    await navigator.clipboard.writeText(lastCmd);
+    toast(isCustom() ? t("copiedCustom") : t("copied"));
+  } catch {
+    $("dlgTitle").textContent = t("copyCmd");
+    $("brk").textContent = lastCmd;
+    $("dlg").showModal();
+    toast(t("copyFail"));
+  }
+});
+$("dlgClose").addEventListener("click", () => $("dlg").close());
+$("resetParams").addEventListener("click", () => {
+  Object.assign(W, JSON.parse(JSON.stringify(DEFAULTS.W)));
+  Object.assign(ADJ, JSON.parse(JSON.stringify(DEFAULTS.ADJ)));
+  Object.assign(CAL, JSON.parse(JSON.stringify(DEFAULTS.CAL)));
+  buildConfig();
+  renderWTable();
+  update();
+});
+
+buildConfig();
+applyI18n();
+</script>
+</body>
+</html>

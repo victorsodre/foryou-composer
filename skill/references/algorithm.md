@@ -72,7 +72,7 @@ Also reported (consistent with Phoenix being Grok-based, not a param.rs constant
 ## @ovictor posting constraints (do not break these to chase score)
 
 - Body in PT. Technical nouns stay in English.
-- No , , .
+- No company names, private brands, or internal wiki in the body.
 - No link in the body — link / QT in the first reply.
 - First line must work for a non-dev (teste do leigo).
 - One idea per post. No "like if / RT this".

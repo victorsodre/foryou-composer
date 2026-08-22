@@ -1,6 +1,6 @@
 # Gauntlet Loop — For You edition
 
-Source pattern:  `gauntlet-loop` (Shumer). Here the **artifact is a post**, the **bar is the score JSON**. The point of the gauntlet is that nobody argues taste: the engine decides, the critic re-runs it, the builder loses gracefully.
+Source pattern: Shumer's gauntlet-loop. Here the **artifact is a post**, the **bar is the score JSON**. The point of the gauntlet is that nobody argues taste: the engine decides, the critic re-runs it, the builder loses gracefully.
 
 ## Objective
 
@@ -23,7 +23,7 @@ Run `scripts/score.mjs` on every candidate. A rewrite wins only if **all** hold:
 - Same turn. Max **2** rewrite rounds — the third rewrite is always worse, ship the winner.
 - Do not spawn subagents unless the user says "gauntlet fundo".
 - Do not invent algorithm weights; the engine is the only score source.
-- Do not add  /  /  or a body link to juice share.
+- Do not add private brand names or a body link to juice share.
 - Stop early if the second rewrite doesn't beat the first on `inNetwork` **or** repeats the same failed trick.
 
 ## Roles (same conversation, no ceremony)

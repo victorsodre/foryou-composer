@@ -16,7 +16,7 @@ description: >
 
 Score first. Rewrite second. Both in the **same** user-facing reply.
 
-Two front-ends share this engine: this skill (score → gauntlet → rewrite, automated) and the **Composer** at `foryou-composer/index.html` (live manual tuning + editable engine params). If the user wants to experiment by hand, tweak weights, or see heads move while typing, point them to the Composer — its "Copy skill command" button round-trips back here. The Composer's engine block is a verbatim copy of `scripts/score.mjs`; if you ever change the engine, update both (parity check in the Composer README).
+Two front-ends share this engine: this skill (score → gauntlet → rewrite, automated) and the **Composer** at [victorsodre.github.io/foryou-composer](https://victorsodre.github.io/foryou-composer/) (live manual tuning + editable engine params). If the user wants to experiment by hand, tweak weights, or see heads move while typing, point them to the Composer — its "Copy skill command" button round-trips back here. The Composer's engine block is a verbatim copy of `scripts/score.mjs`; if you ever change the engine, update both (parity check in the Composer README).
 
 Read `references/algorithm.md` (scoring facts) and `references/gauntlet.md` (rewrite loop) before writing copy. Read `references/monetization.md` when payout, impressions, or eligibility come up. Run the engine — never reimplement the math in prose; the engine exists so that two candidates are compared by the same ruler.
 

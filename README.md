@@ -45,12 +45,8 @@ Dead 2023 numbers you'll still see in articles — not used here: bookmark/scree
 ## Repo
 
 ```bash
+git clone https://github.com/victorsodre/foryou-composer.git
 cd foryou-composer
-git init && git branch -M main
-git add .
-git commit -m "foryou 0.1: composer + skill, param.rs weights"
-gh repo create foryou-composer --public --source=. --remote=origin --push
-gh api repos/victorsodre/foryou-composer/pages -X POST -F "source[branch]=main" -F "source[path]=/"
 ```
 
 Pages fallback: Settings → Pages → Deploy from branch → main / root.

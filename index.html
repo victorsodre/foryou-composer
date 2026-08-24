@@ -309,7 +309,7 @@
         <small data-i="tagline">method, not hype</small>
       </div>
     </div>
-    <div class="vtag">engine <b>0.1</b> · xai-org/x-algorithm</div>
+    <div class="vtag">engine <b id="engineVer">0.2</b> · xai-org/x-algorithm</div>
     <div class="langs" role="group" aria-label="Language">
       <button class="lang" type="button" data-lang="en" aria-pressed="true" title="English">🇺🇸</button>
       <button class="lang" type="button" data-lang="pt" aria-pressed="false" title="Português">🇧🇷</button>
@@ -341,7 +341,8 @@
               <label class="tog"><span data-i="hasImage">Has image?</span><input type="checkbox" id="hasImage"></label>
               <label class="tog"><span data-i="hasVideo">Has video?</span><input type="checkbox" id="hasVideo"></label>
               <label class="tog span2" id="vidRow" style="display:none"><span data-i="vid10">Video ≥ 10s?</span><input type="checkbox" id="vid10"></label>
-              <label class="tog"><span data-i="isThread">Is a thread?</span><input type="checkbox" id="isThread"></label>
+              <label class="tog"><span data-i="isThread">Thread opener?</span><input type="checkbox" id="isThread"></label>
+              <label class="tog span2" id="threadMidRow" style="display:none"><span data-i="isThreadMid">Mid-thread (not the opener)?</span><input type="checkbox" id="threadMid"></label>
               <label class="num"><span data-i="postsHour">Posts already this hour</span><input type="number" id="postsHour" min="0" max="20" value="0"></label>
               <label class="tog"><span data-i="isRepost">Repost / not original?</span><input type="checkbox" id="isRepost"></label>
               <label class="tog"><span data-i="isReply">Body is a reply?</span><input type="checkbox" id="isReply"></label>
@@ -377,6 +378,7 @@
             <span id="monoBody">—</span>
           </div>
           <div class="cb-warn" id="cbWarn"></div>
+          <div class="cb-warn" id="voiceWarn"></div>
           <div class="risk" id="risk"></div>
           <div class="actions">
             <button class="btn" type="button" id="breakdownBtn" data-i="breakdown">Score breakdown</button>
@@ -450,6 +452,8 @@
         <li data-i="h4"></li>
         <li data-i="h5"></li>
         <li data-i="h6"></li>
+        <li data-i="h7"></li>
+        <li data-i="h8"></li>
       </ul>
     </section>
 
@@ -469,7 +473,7 @@
     </section>
 
     <footer class="foot">
-      <p class="disc" data-i="disclaimer">Weights verified from xai-org/x-algorithm (home-mixer/params/param.rs). Text-to-probability mapping is heuristic; production values can drift via feature switches.</p>
+      <p class="disc" data-i="disclaimer">Weights verified from xai-org/x-algorithm (home-mixer/params/param.rs). Text-to-probability mapping is heuristic and isolated from Σ w·p; production values can drift via feature switches.</p>
       <p data-i="builtBy">built by <a href="https://x.com/ovictor" target="_blank" rel="noreferrer">@ovictor</a> · engine shared with the /foryou skill</p>
     </footer>
   </main>
@@ -487,13 +491,13 @@
 
 <script>
 /* ============================================================================
-   ENGINE-START (0.1) — verbatim copy of ~/.grok/skills/foryou/scripts/score.mjs
-   (core block: weights → r3 helpers; only `export ` removed).
-   Keep the two in sync. Parity test:
-     awk '/ENGINE-START/{f=1;next} /ENGINE-END/{f=0} f' index.html > /tmp/e.js
-   then compare scoreDraft() outputs against score.mjs on the same inputs.
+   ENGINE-START (0.2) — verbatim copy in index.html (only `export ` removed).
+   Keep the two in sync. Self-check: node skill/scripts/self-check.mjs
    ========================================================================= */
+const ENGINE_VERSION = "0.2";
+
 // ---------------------------------------------------------------- weights (param.rs)
+// Verified layer. Do not retune these to chase a handful of posts.
 const W = {
   fav: 0.5,
   reply: 5.0,
@@ -523,7 +527,7 @@ const ADJ = {
 
 const CAL = { K: 6 }; // squash calibration: score = 100·ev/(ev+K). Reference strong post ⇒ ~75. Object so the HTML configurator can tune it live.
 
-// ---------------------------------------------------------------- text signals
+// ---------------------------------------------------------------- text signals (heuristic layer — text → features)
 const EMOJI_RE = /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}]/gu;
 const URL_G = /https?:\/\/[^\s]+/gi; // for .match only
 const URL_ONE = /https?:\/\/\S+/i; // for .test (no `g` — global regexes are stateful in .test)
@@ -537,6 +541,13 @@ const CODEISH =
 const NUMBY = /\d|%/;
 const UTIL =
   /\b(guide|guia|checklist|table|tabela|repo|github|resource|recurso|template|how to|como fazer|passo a passo|tutorial|m[eé]todo|f[oó]rmula|atalho|dica|cheat ?sheet|docs?|workflow|setup)\b/i;
+
+// Light anti-cliché / hype-voice list. Heuristic, not a Phoenix head. Keep short on purpose.
+// Do not flag "não é X. É Y." — that is this account's voice, not a template.
+const CLICHE_RE =
+  /\b(let'?s dive in|game[- ]?changer|unlock your|in today'?s world|here'?s the kicker|at the end of the day|secret sauce|never been easier|you won'?t believe|stop scrolling|vamos explorar|[eé] importante (ressaltar|destacar)|desvende|revolucion[ae]|o futuro [eé] agora|nunca foi t[aã]o f[aá]cil|neste artigo|sem mais delongas)\b/i;
+const HYPE_RE =
+  /\b(insane|mind-?blown|unleash(?:ing)?|crushing it|must-?see|insano|surpreendente|revolucion[aá]ri[oa])\b/gi;
 
 function countEmoji(s) {
   // Grapheme-aware when available (Node ≥ 16), so 👨‍👩‍👧 counts once, not thrice.
@@ -581,12 +592,19 @@ function analyze(text) {
   const tooManyEmoji = emojis >= 6 || (chars > 0 && emojis / Math.max(chars, 1) > 0.12);
   const allCaps = letters.length >= 12 && capsRatio > 0.62;
 
+  const clicheHit = CLICHE_RE.test(trimmed);
+  CLICHE_RE.lastIndex = 0;
+  HYPE_RE.lastIndex = 0;
+  const hypeHits = trimmed.match(HYPE_RE) || [];
+  const cliche = clicheHit || hypeHits.length >= 2;
+
   const risks = [];
-  if (allCaps) risks.push("ALL CAPS");
-  if (baitPhrase) risks.push("like/follow/RT bait");
-  if (tooManyHash) risks.push("hashtag spam (>2)");
-  if (tooManyEmoji) risks.push("emoji spam");
-  if (urls.length > 0) risks.push("link in body \u2014 move to first reply");
+  if (allCaps) risks.push({ id: "all-caps", label: "ALL CAPS" });
+  if (baitPhrase) risks.push({ id: "bait", label: "like/follow/RT bait" });
+  if (tooManyHash) risks.push({ id: "hashtag-spam", label: "hashtag spam (>2)" });
+  if (tooManyEmoji) risks.push({ id: "emoji-spam", label: "emoji spam" });
+  // Click-exit, not a share driver. Coach action is the protocol, not a weight.
+  if (urls.length > 0) risks.push({ id: "url-in-body", label: "link in body", action: "mova pro reply" });
 
   const baitSignals = [allCaps, baitPhrase, tooManyHash, tooManyEmoji].filter(Boolean).length;
 
@@ -594,18 +612,21 @@ function analyze(text) {
     trimmed, chars, first, last, urls: urls.length, hashes, emojis, capsRatio,
     linkMid, linkEnd, question, softQuestion, saveable, numbers, util, printable, hook,
     bait: baitSignals > 0, baitLevel: baitSignals >= 2 || baitPhrase ? 2 : baitSignals, risks,
+    cliche, hypeHits: hypeHits.length,
   };
 }
 
-// ---------------------------------------------------------------- propensities (relative, 0–1)
+// ---------------------------------------------------------------- propensities (heuristic layer — features → p ∈ [0,1])
+// Isolated from Σ w·p. Fix the mapping here when a gap-log case misses; do not touch W.
 function propensities(A, o, notes) {
   const p = {};
+  const role = o.threadRole || null;
 
   // reply — a real judgment question is the one lever writing controls directly
   p.reply = 0.08;
   if (A.question) { p.reply += 0.35; notes.push("+ reply: real question at the end"); }
   else if (A.softQuestion) { p.reply += 0.12; notes.push("+ reply: '?' without a clear interrogative"); }
-  if (o.isThread) p.reply += 0.04;
+  if (role === "opener") p.reply += 0.04;
 
   // amplify — retweet (1.0) + quote (5.0): quotable takes travel
   p.amplify = 0.06;
@@ -624,10 +645,11 @@ function propensities(A, o, notes) {
   p.shareDm = 0.05 + (A.util ? 0.1 : 0) + (A.numbers && A.chars > 80 ? 0.05 : 0);
   p.shareBtn = 0.05 + (A.util ? 0.08 : 0);
 
-  // click into post (0.4) — the hook's job
+  // click into post (0.4) — the hook's job. Opener-only: For You sees tweet 1, not tweet 4.
   p.click = 0.25;
   if (A.hook) { p.click += 0.15; notes.push("+ click: hook-length first line"); }
-  if (o.isThread) { p.click += 0.1; notes.push("+ click: thread opener"); }
+  if (role === "opener") { p.click += 0.1; notes.push("+ click: thread opener"); }
+  else if (role === "mid") { notes.push("thread mid: not the For You opener — opener click/reply bonuses withheld"); }
   if (A.chars < 40 && !o.hasImage && !o.hasVideo) { p.click -= 0.1; notes.push("− attention: < 40 chars and no media"); }
 
   // continuous dwell — seconds, paid at 0.004/s (small but real)
@@ -651,6 +673,12 @@ function propensities(A, o, notes) {
   // open link (0.2)
   p.openLink = A.linkEnd || A.linkMid ? 0.15 : 0; // real head, kept honest \u2014 but small; the link tax lives in shareCopy
 
+  // light anti-cliché / voice — nudge amplify, do not touch W
+  if (A.cliche) {
+    p.amplify = Math.max(0, p.amplify - 0.04);
+    notes.push("− voice: cliché/hype phrasing (heuristic; not a Phoenix head; weights unchanged)");
+  }
+
   // negative propensities — small p, huge weights; dwell-regret gates amplify these in prod
   if (A.baitLevel >= 2) {
     p.notInterested = 0.05; p.mute = 0.03; p.report = 0.002;
@@ -667,7 +695,8 @@ function propensities(A, o, notes) {
   return p;
 }
 
-// ---------------------------------------------------------------- scoring
+// ---------------------------------------------------------------- scoring (verified layer — p → Σ w·p)
+// Reads weights + propensities + scoring flags. Does not read the draft text.
 function squash(ev) {
   if (ev <= 0) return 0;
   return Math.round((100 * ev) / (ev + CAL.K));
@@ -678,30 +707,7 @@ function sameAuthorMult(nAlready, forceSecond) {
   return ADJ.authorFloor + (1 - ADJ.authorFloor) * Math.pow(ADJ.authorDecay, n);
 }
 
-function scoreDraft(opts) {
-  const o = {
-    text: opts.text || "",
-    hasImage: !!opts.hasImage,
-    hasVideo: !!opts.hasVideo,
-    vid10: !!opts.vid10,
-    isThread: !!opts.isThread,
-    postsHour: Number.isFinite(Number(opts.postsHour)) ? Math.max(0, Number(opts.postsHour)) : 0,
-    follows: !!opts.follows,
-    forceSecond: !!opts.forceSecond,
-    isRepost: !!opts.isRepost,
-    isReply: !!opts.isReply,
-    mutualShare: Number.isFinite(Number(opts.mutualShare))
-      ? Math.max(0, Math.min(1, Number(opts.mutualShare)))
-      : 0.2,
-  };
-  const A = analyze(o.text);
-  const notes = [];
-
-  if (!A.trimmed) return result(o, A, {}, { ev: 0, heads: zeroHeads() }, notes);
-
-  const p = propensities(A, o, notes);
-
-  // EV per user-visible head group (weights × propensities)
+function expectedValue(p, o) {
   const replyW = W.reply + W.replyMutualBoost * o.mutualShare;
   const heads = {
     reply: { p: r2(p.reply), ev: r3(replyW * p.reply) },
@@ -720,17 +726,52 @@ function scoreDraft(opts) {
     follow: { p: r2(p.follow), ev: r3(W.followAuthor * p.follow) },
     fav: { p: r2(p.fav), ev: r3(W.fav * p.fav) },
   };
-
   let ev =
     heads.reply.ev + heads.amplify.ev + heads.share.ev + heads.attention.ev + heads.follow.ev + heads.fav.ev;
-
-  // negatives
   const negEv =
     W.neg.notInterested * p.notInterested + W.neg.mute * p.mute + W.neg.report * p.report +
     W.neg.notDwelled * p.notDwelled;
   ev += negEv;
+  return { heads, ev, negEv };
+}
 
-  // clickbait-shaped guard (ClickDwellLowFavRatePenalty): strong hook, empty payload
+function roundPropensities(p) {
+  const out = {};
+  for (const k of Object.keys(p)) out[k] = k === "dwellSec" ? r3(p[k]) : r2(p[k]);
+  return out;
+}
+
+function scoreDraft(opts) {
+  const o = {
+    text: opts.text || "",
+    hasImage: !!opts.hasImage,
+    hasVideo: !!opts.hasVideo,
+    vid10: !!opts.vid10,
+    isThread: !!opts.isThread || !!opts.threadMid,
+    threadMid: !!opts.threadMid,
+    postsHour: Number.isFinite(Number(opts.postsHour)) ? Math.max(0, Number(opts.postsHour)) : 0,
+    follows: !!opts.follows,
+    forceSecond: !!opts.forceSecond,
+    isRepost: !!opts.isRepost,
+    isReply: !!opts.isReply,
+    mutualShare: Number.isFinite(Number(opts.mutualShare))
+      ? Math.max(0, Math.min(1, Number(opts.mutualShare)))
+      : 0.2,
+  };
+  o.threadRole = o.threadMid ? "mid" : o.isThread ? "opener" : null;
+  const A = analyze(o.text);
+  const notes = [];
+
+  if (!A.trimmed) return result(o, A, {}, { ev: 0, heads: zeroHeads() }, notes);
+
+  const p = propensities(A, o, notes);
+  const S = expectedValue(p, o);
+  let ev = S.ev;
+  const negEv = S.negEv;
+  const heads = S.heads;
+
+  // After Σ w·p: clickbait-shaped guard mirrors ClickDwellLowFavRatePenalty.
+  // Hybrid (reads substance from text + p.click) — labeled, not a weight retune.
   const substance = A.saveable || A.util || (A.numbers && A.chars > 100);
   if (p.click >= 0.35 && !substance && A.chars < 120) {
     ev *= 0.85;
@@ -763,11 +804,15 @@ function result(o, A, p, S, notes) {
   if (monetizable) mNotes.push("payout ∝ qualified impressions (unique Premium home-timeline views, ≥50% visible) — OON reach is the growth lever");
 
   return {
-    engine: "foryou v2 (xai-org/x-algorithm param.rs)",
+    engine: `foryou ${ENGINE_VERSION} (xai-org/x-algorithm param.rs)`,
+    engineVersion: ENGINE_VERSION,
     empty: !A.trimmed,
     chars: A.chars,
     first: A.first,
     last: A.last,
+    threadRole: o.threadRole,
+    layers: { heuristic: "text→p", verified: "Σw·p from param.rs" },
+    propensities: Object.keys(p).length ? roundPropensities(p) : {},
     heads: S.heads,
     ev,
     potential: {
@@ -782,18 +827,25 @@ function result(o, A, p, S, notes) {
       question: A.question, softQuestion: A.softQuestion, saveable: A.saveable, utility: A.util,
       printableFirstLine: A.printable, hookLength: A.hook, numbers: A.numbers,
       linkMid: A.linkMid, linkEnd: A.linkEnd, hashtags: A.hashes, emojis: A.emojis,
+      cliche: !!A.cliche, threadRole: o.threadRole,
     },
     risks: A.risks,
     monetization: { eligibleFormat: monetizable, assumedOriginal: !o.isRepost, notes: mNotes },
     notes,
     disclaimer:
-      "Weights verified from xai-org/x-algorithm (home-mixer/params/param.rs). Text-to-probability mapping is heuristic; production values can drift via feature switches.",
+      "Weights verified from xai-org/x-algorithm (home-mixer/params/param.rs). Text-to-probability mapping is heuristic and isolated from Σ w·p; production values can drift via feature switches.",
   };
 }
 
 function zeroHeads() {
   const z = { p: 0, ev: 0 };
   return { reply: { ...z }, amplify: { ...z }, share: { ...z }, attention: { ...z }, follow: { ...z }, fav: { ...z } };
+}
+
+function formatRisk(r) {
+  if (typeof r === "string") return r;
+  if (!r || !r.label) return "";
+  return r.action ? `${r.label} \u2192 ${r.action}` : r.label;
 }
 
 const r2 = (n) => Math.round(n * 100) / 100;
@@ -818,7 +870,8 @@ const I18N = {
     hasImage: "Has image?",
     hasVideo: "Has video?",
     vid10: "Video ≥ 10s? (required for the video-quality head)",
-    isThread: "Is a thread?",
+    isThread: "Thread opener?",
+    isThreadMid: "Mid-thread (not the opener)?",
     postsHour: "Posts already this hour",
     isRepost: "Repost / not original?",
     isReply: "Body is a reply?",
@@ -851,6 +904,7 @@ const I18N = {
     resetParams: "Reset to param.rs",
     riskTitle: "Mute-bait risk",
     cbWarn: "Clickbait-shaped: the hook promises more than the body delivers. Prod has an explicit click-dwell/low-fav penalty for this.",
+    voiceWarn: "Cliché/hype phrasing. Method, not hype — heuristic, not a Phoenix head. Weights unchanged.",
     emptyHint: "Empty draft. Start writing.",
     weak: "Thin. Needs a job: reply, reference, or hold the read.",
     mid: "Readable. One stronger head would lift this.",
@@ -864,7 +918,7 @@ const I18N = {
     heads: { reply: "Reply", amplify: "Amplify (RT + quote)", share: "Share (copy-link · DM)", attention: "Attention (click + dwell)", follow: "Follow from post", fav: "Fav (decorative)" },
     likeNote: "Fav weight is 0.5. A copy-link share is worth 40 likes. Dimmed on purpose.",
     howTitle: "How scoring works",
-    howLead: "One layer of verified structure + one honest heuristic layer. Structure and weights come from the open-source <code>xai-org/x-algorithm</code> (Jan 2026 drop; Phoenix weights May 2026). The heuristic layer maps your text to action probabilities — that part is ours, and it’s labeled.",
+    howLead: "Two isolated layers. <b>text→p</b> is heuristic (ours, labeled). <b>Σ w·p</b> uses the open-source <code>xai-org/x-algorithm</code> weights (Jan 2026 drop; Phoenix May 2026). Do not retune W because a heuristic p looks off — fix the mapping, log the gap.",
     howPTitle: "The 2026 pipeline",
     howP1: "Rust stack, four parts: <b>Home Mixer</b> orchestrates; candidates come from <b>Thunder</b> (accounts you follow) and <b>Phoenix retrieval</b> + SimClusters (accounts you don’t); the <b>Phoenix model</b> (Grok-based transformer) predicts a probability per action; final score = Σ weight × P(action), then adjustments and filters. The engine here mirrors that sum with the real weights.",
     howVTitle: "Phoenix heads (the real list)",
@@ -892,14 +946,16 @@ const I18N = {
     h2: "Referencable utility (guia, método, tabela, repo) → share via copy link — the 20.0, biggest lever in the file.",
     h3: "Code / list / concrete numbers → dwell (active seconds) + copy-link. “Saveable” pays through these two heads now.",
     h4: "First line 18–90 chars, no URL → click + quotable. 24–110 chars counts as a hook.",
-    h5: "Under 40 chars with no media → non-dwell risk. Link mid-body breaks the read; link belongs in the first reply.",
+    h5: "Under 40 chars with no media → non-dwell risk. URL in the body is a click-exit: risk action <code>mova pro reply</code>.",
     h6: "Strong hook + thin body → clickbait-shaped warning (mirrors the prod penalty).",
+    h7: "Thread opener ≠ mid. For You sees tweet 1; a later tweet withholds the opener click/reply bonuses.",
+    h8: "Light anti-cliché / hype-voice heuristic. Labeled note + a small amplify nudge. Not a Phoenix head. “Não é X. É Y.” is this account’s voice — not flagged.",
     aboutTitle: "About",
     about1: "Built by Victor (@ovictor). Daily public practice: AI × 3D × code. Thesis: method, not hype.",
-    about2: "Jan 2026: X open-sourced the Grok-based For You stack (<code>xai-org/x-algorithm</code>) — this time with the real weights in <code>home-mixer/params/param.rs</code>. May 2026: the Phoenix model itself dropped. This tool encodes those values verbatim, plus a labeled heuristic layer for text→probability.",
+    about2: "Jan 2026: X open-sourced the Grok-based For You stack (<code>xai-org/x-algorithm</code>) — this time with the real weights in <code>home-mixer/params/param.rs</code>. May 2026: the Phoenix model itself dropped. Engine 0.2 encodes those values verbatim, with text→p isolated from Σ w·p.",
     about3: "It does not predict virality. It shows structure: which heads you’re writing for, which multipliers you’re paying, when you’re baiting mute, and whether the post can even earn under Original Content Rewards.",
     about4: "Two ways to use the same engine: this composer for live manual tuning, or the <code>/foryou</code> skill for the full score → gauntlet → rewrite loop in chat.",
-    disclaimer: "Weights verified from xai-org/x-algorithm (home-mixer/params/param.rs). Text-to-probability mapping is heuristic; production values can drift via feature switches.",
+    disclaimer: "Weights verified from xai-org/x-algorithm (home-mixer/params/param.rs). Text-to-probability mapping is heuristic and isolated from Σ w·p; production values can drift via feature switches.",
     builtBy: "built by <a href='https://x.com/ovictor' target='_blank' rel='noreferrer'>@ovictor</a> · engine shared with the /foryou skill",
   },
   pt: {
@@ -913,7 +969,8 @@ const I18N = {
     hasImage: "Tem imagem?",
     hasVideo: "Tem vídeo?",
     vid10: "Vídeo ≥ 10s? (obrigatório pro head de video quality)",
-    isThread: "É uma thread?",
+    isThread: "Opener da thread?",
+    isThreadMid: "Meio da thread (não é o opener)?",
     postsHour: "Posts já feitos nesta hora",
     isRepost: "Repost / não-original?",
     isReply: "O corpo é um reply?",
@@ -946,6 +1003,7 @@ const I18N = {
     resetParams: "Resetar pro param.rs",
     riskTitle: "Risco de mute-bait",
     cbWarn: "Cara de clickbait: o gancho promete mais do que o corpo entrega. Em produção existe penalidade explícita de click-dwell/low-fav pra isso.",
+    voiceWarn: "Frase de clichê/hype. Método, não hype — heurística, não é head do Phoenix. Pesos intactos.",
     emptyHint: "Rascunho vazio. Começa a escrever.",
     weak: "Magro. Falta um trabalho: reply, referência ou segurar a leitura.",
     mid: "Dá pra ler. Um head mais forte levantava.",
@@ -959,7 +1017,7 @@ const I18N = {
     heads: { reply: "Reply", amplify: "Amplify (RT + quote)", share: "Share (copy-link · DM)", attention: "Attention (click + dwell)", follow: "Follow pelo post", fav: "Fav (decorativo)" },
     likeNote: "Fav pesa 0.5. Um share por copy-link vale 40 likes. Apagado de propósito.",
     howTitle: "Como o score funciona",
-    howLead: "Uma camada de estrutura verificada + uma camada heurística honesta. Estrutura e pesos vêm do open-source <code>xai-org/x-algorithm</code> (drop de jan/2026; pesos do Phoenix em maio/2026). A camada heurística mapeia o seu texto pra probabilidades de ação — essa parte é nossa, e está rotulada.",
+    howLead: "Duas camadas isoladas. <b>texto→p</b> é heurística (nossa, rotulada). <b>Σ w·p</b> usa os pesos do <code>xai-org/x-algorithm</code> (drop de jan/2026; Phoenix em maio/2026). Não retune W porque um p heurístico parece off — conserta o mapeamento, registra o gap.",
     howPTitle: "O pipeline de 2026",
     howP1: "Stack em Rust, quatro partes: o <b>Home Mixer</b> orquestra; candidatos vêm do <b>Thunder</b> (quem você segue) e do <b>Phoenix retrieval</b> + SimClusters (quem você não segue); o <b>modelo Phoenix</b> (transformer baseado no Grok) prevê uma probabilidade por ação; score final = Σ peso × P(ação), depois ajustes e filtros. O engine daqui espelha essa soma com os pesos reais.",
     howVTitle: "Heads do Phoenix (a lista real)",
@@ -987,14 +1045,16 @@ const I18N = {
     h2: "Utilidade referenciável (guia, método, tabela, repo) → share via copy link — o 20.0, maior alavanca do arquivo.",
     h3: "Código / lista / números concretos → dwell (active seconds) + copy-link. “Salvável” agora paga por esses dois heads.",
     h4: "Primeira linha 18–90 chars, sem URL → click + citável. 24–110 chars conta como gancho.",
-    h5: "Menos de 40 chars sem mídia → risco de non-dwell. Link no meio quebra a leitura; link mora no primeiro reply.",
+    h5: "Menos de 40 chars sem mídia → risco de non-dwell. URL no corpo é click-exit: ação <code>mova pro reply</code>.",
     h6: "Gancho forte + corpo magro → aviso de cara-de-clickbait (espelha a penalidade de produção).",
+    h7: "Opener da thread ≠ meio. O For You vê o tweet 1; um tweet posterior não leva o bônus de click/reply do opener.",
+    h8: "Heurística leve anti-clichê / voz-hype. Nota rotulada + um nudge pequeno em amplify. Não é head do Phoenix. “Não é X. É Y.” é voz desta conta — não marca.",
     aboutTitle: "Sobre",
     about1: "Feito por Victor (@ovictor). Prática diária pública: IA × 3D × código. Tese: método, não hype.",
-    about2: "Jan/2026: o X abriu o stack For You baseado no Grok (<code>xai-org/x-algorithm</code>) — desta vez com os pesos reais no <code>home-mixer/params/param.rs</code>. Maio/2026: o próprio modelo Phoenix foi liberado. Esta ferramenta encoda esses valores literalmente, mais uma camada heurística rotulada de texto→probabilidade.",
+    about2: "Jan/2026: o X abriu o stack For You baseado no Grok (<code>xai-org/x-algorithm</code>) — desta vez com os pesos reais no <code>home-mixer/params/param.rs</code>. Maio/2026: o próprio modelo Phoenix foi liberado. Engine 0.2 encoda esses valores literalmente, com texto→p isolado de Σ w·p.",
     about3: "Não prevê viral. Mostra estrutura: pra quais heads você está escrevendo, quais multiplicadores está pagando, quando está pedindo mute — e se o post sequer pode render no Original Content Rewards.",
     about4: "Dois jeitos de usar o mesmo engine: este composer pra tuning manual ao vivo, ou a skill <code>/foryou</code> pro loop completo score → gauntlet → rewrite no chat.",
-    disclaimer: "Weights verified from xai-org/x-algorithm (home-mixer/params/param.rs). Text-to-probability mapping is heuristic; production values can drift via feature switches.",
+    disclaimer: "Weights verified from xai-org/x-algorithm (home-mixer/params/param.rs). Text-to-probability mapping is heuristic and isolated from Σ w·p; production values can drift via feature switches.",
     builtBy: "built by <a href='https://x.com/ovictor' target='_blank' rel='noreferrer'>@ovictor</a> · engine compartilhado com a skill /foryou",
   }
 };
@@ -1038,6 +1098,7 @@ function isCustom() {
 
 function applyI18n() {
   document.documentElement.lang = lang === "pt" ? "pt-BR" : "en";
+  if ($("engineVer")) $("engineVer").textContent = ENGINE_VERSION;
   document.querySelectorAll("[data-i]").forEach((el) => {
     const val = t(el.getAttribute("data-i"));
     if (typeof val === "string") el.innerHTML = val;
@@ -1099,6 +1160,7 @@ function readOpts() {
     hasVideo: $("hasVideo").checked,
     vid10: $("vid10").checked,
     isThread: $("isThread").checked,
+    threadMid: $("threadMid").checked,
     postsHour: Number($("postsHour").value) || 0,
     forceSecond: $("forceSecond").checked,
     isRepost: $("isRepost").checked,
@@ -1110,6 +1172,7 @@ function readOpts() {
 function update() {
   const o = readOpts();
   $("vidRow").style.display = o.hasVideo ? "flex" : "none";
+  $("threadMidRow").style.display = o.isThread || o.threadMid ? "flex" : "none";
   $("mutualsPct").textContent = Math.round(o.mutualShare * 100) + "%";
   const j = scoreDraft(o);
   const i = I18N[lang];
@@ -1148,10 +1211,15 @@ function update() {
   $("cbWarn").className = "cb-warn" + (cb ? " on" : "");
   $("cbWarn").textContent = cb ? i.cbWarn : "";
 
+  const voice = !!(j.signals && j.signals.cliche);
+  $("voiceWarn").className = "cb-warn" + (voice ? " on" : "");
+  $("voiceWarn").textContent = voice ? i.voiceWarn : "";
+
   const risk = $("risk");
-  if (j.risks.length) {
+  const riskBits = (j.risks || []).map(formatRisk);
+  if (riskBits.length) {
     risk.className = "risk on";
-    risk.innerHTML = `<b>${i.riskTitle}</b> — ${j.risks.join(" · ")}<br>mute ${W.neg.mute} · not interested ${W.neg.notInterested} · report ${W.neg.report} · block ${W.neg.block} — plus dwell-regret gates in prod`;
+    risk.innerHTML = `<b>${i.riskTitle}</b> — ${riskBits.join(" · ")}<br>mute ${W.neg.mute} · not interested ${W.neg.notInterested} · report ${W.neg.report} · block ${W.neg.block} — plus dwell-regret gates in prod`;
   } else {
     risk.className = "risk";
     risk.innerHTML = "";
@@ -1169,6 +1237,8 @@ function update() {
 
   lastBreakdown = [
     `FOR YOU COMPOSER — ${j.engine}${isCustom() ? "  [CUSTOM PARAMS]" : ""}`,
+    j.layers ? `layers  ${j.layers.heuristic}  then  ${j.layers.verified}` : "",
+    j.threadRole ? `threadRole ${j.threadRole}` : "",
     "",
     ...j.notes,
     "",
@@ -1176,7 +1246,7 @@ function update() {
     "",
     `ev total ${j.ev}`,
     `potential  in ${j.potential.inNetwork} · oon ${j.potential.outOfNetwork} · topic-oon ${j.potential.topicOutOfNetwork}`,
-    `coach ${j.checkCount}/6${j.risks.length ? " · risks: " + j.risks.join(", ") : ""}`,
+    `coach ${j.checkCount}/6${riskBits.length ? " · risks: " + riskBits.join(", ") : ""}`,
     "",
     j.disclaimer,
   ].join("\n");
@@ -1191,7 +1261,8 @@ function buildCmd(o) {
   if (o.hasImage) parts.push("--image");
   if (o.hasVideo) parts.push("--video");
   if (o.vid10) parts.push("--vid10");
-  if (o.isThread) parts.push("--thread");
+  if (o.threadMid) parts.push("--thread-mid");
+  else if (o.isThread) parts.push("--thread");
   if (o.postsHour > 0) parts.push(`--posts ${o.postsHour}`);
   if (o.forceSecond) parts.push("--second");
   if (o.isRepost) parts.push("--repost");
@@ -1219,7 +1290,7 @@ document.querySelectorAll("[data-nav]").forEach((b) => {
     $("view-" + b.dataset.nav).classList.add("on");
   });
 });
-["text", "hasImage", "hasVideo", "vid10", "isThread", "postsHour", "forceSecond", "isRepost", "isReply", "mutuals"].forEach((id) => {
+["text", "hasImage", "hasVideo", "vid10", "isThread", "threadMid", "postsHour", "forceSecond", "isRepost", "isReply", "mutuals"].forEach((id) => {
   $(id).addEventListener("input", update);
   $(id).addEventListener("change", update);
 });

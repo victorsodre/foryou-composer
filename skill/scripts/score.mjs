@@ -1,19 +1,29 @@
 #!/usr/bin/env node
-// For You engine 0.1 — weights verified from xai-org/x-algorithm (home-mixer/params/param.rs, Jan 2026 drop).
+// For You engine 0.2 — weights verified from xai-org/x-algorithm (home-mixer/params/param.rs, Jan 2026 drop).
 // 0.1 (2026-08-14): first public release. URL in body earns no share EV and raises a risk —
 // a link in the body is a click exit, not a share driver; it belongs in the first reply.
-// Text→probability mapping is heuristic; the weighted sum Σ w_i·p_i mirrors Phoenix's scoring formula.
+// 0.2 (2026-08-24): isolate text→p (heuristic) from Σ w·p (param.rs). Thread opener ≠ mid.
+// URL-in-body risk carries action "mova pro reply". Light anti-cliché/voice heuristic.
+// Weights unchanged — do not casual-retune W because a heuristic p looks off.
 //
 // Usage:
-//   node score.mjs --text "..." [--image] [--video] [--vid10] [--thread] [--posts N]
-//                  [--follows] [--second] [--repost] [--reply] [--mutuals 0.2]
+//   node score.mjs --text "..." [--image] [--video] [--vid10] [--thread] [--thread-mid]
+//                  [--posts N] [--follows] [--second] [--repost] [--reply] [--mutuals 0.2]
 //   echo '{"text":"...","hasVideo":true,"vid10":true}' | node score.mjs
 //   node score.mjs --help
 //
 // Output: JSON only. potential.inNetwork / outOfNetwork / topicOutOfNetwork are 0–100.
 // Scores are comparative (candidate A vs candidate B), not absolute predictions.
+// `propensities` is text→p (ours). `heads.*.ev` / `ev` are Σ w·p (verified weights).
+
+/* ============================================================================
+   ENGINE-START (0.2) — verbatim copy in index.html (only `export ` removed).
+   Keep the two in sync. Self-check: node skill/scripts/self-check.mjs
+   ========================================================================= */
+const ENGINE_VERSION = "0.2";
 
 // ---------------------------------------------------------------- weights (param.rs)
+// Verified layer. Do not retune these to chase a handful of posts.
 const W = {
   fav: 0.5,
   reply: 5.0,
@@ -43,7 +53,7 @@ const ADJ = {
 
 const CAL = { K: 6 }; // squash calibration: score = 100·ev/(ev+K). Reference strong post ⇒ ~75. Object so the HTML configurator can tune it live.
 
-// ---------------------------------------------------------------- text signals
+// ---------------------------------------------------------------- text signals (heuristic layer — text → features)
 const EMOJI_RE = /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}]/gu;
 const URL_G = /https?:\/\/[^\s]+/gi; // for .match only
 const URL_ONE = /https?:\/\/\S+/i; // for .test (no `g` — global regexes are stateful in .test)
@@ -57,6 +67,13 @@ const CODEISH =
 const NUMBY = /\d|%/;
 const UTIL =
   /\b(guide|guia|checklist|table|tabela|repo|github|resource|recurso|template|how to|como fazer|passo a passo|tutorial|m[eé]todo|f[oó]rmula|atalho|dica|cheat ?sheet|docs?|workflow|setup)\b/i;
+
+// Light anti-cliché / hype-voice list. Heuristic, not a Phoenix head. Keep short on purpose.
+// Do not flag "não é X. É Y." — that is this account's voice, not a template.
+const CLICHE_RE =
+  /\b(let'?s dive in|game[- ]?changer|unlock your|in today'?s world|here'?s the kicker|at the end of the day|secret sauce|never been easier|you won'?t believe|stop scrolling|vamos explorar|[eé] importante (ressaltar|destacar)|desvende|revolucion[ae]|o futuro [eé] agora|nunca foi t[aã]o f[aá]cil|neste artigo|sem mais delongas)\b/i;
+const HYPE_RE =
+  /\b(insane|mind-?blown|unleash(?:ing)?|crushing it|must-?see|insano|surpreendente|revolucion[aá]ri[oa])\b/gi;
 
 function countEmoji(s) {
   // Grapheme-aware when available (Node ≥ 16), so 👨‍👩‍👧 counts once, not thrice.
@@ -101,12 +118,19 @@ function analyze(text) {
   const tooManyEmoji = emojis >= 6 || (chars > 0 && emojis / Math.max(chars, 1) > 0.12);
   const allCaps = letters.length >= 12 && capsRatio > 0.62;
 
+  const clicheHit = CLICHE_RE.test(trimmed);
+  CLICHE_RE.lastIndex = 0;
+  HYPE_RE.lastIndex = 0;
+  const hypeHits = trimmed.match(HYPE_RE) || [];
+  const cliche = clicheHit || hypeHits.length >= 2;
+
   const risks = [];
-  if (allCaps) risks.push("ALL CAPS");
-  if (baitPhrase) risks.push("like/follow/RT bait");
-  if (tooManyHash) risks.push("hashtag spam (>2)");
-  if (tooManyEmoji) risks.push("emoji spam");
-  if (urls.length > 0) risks.push("link in body \u2014 move to first reply");
+  if (allCaps) risks.push({ id: "all-caps", label: "ALL CAPS" });
+  if (baitPhrase) risks.push({ id: "bait", label: "like/follow/RT bait" });
+  if (tooManyHash) risks.push({ id: "hashtag-spam", label: "hashtag spam (>2)" });
+  if (tooManyEmoji) risks.push({ id: "emoji-spam", label: "emoji spam" });
+  // Click-exit, not a share driver. Coach action is the protocol, not a weight.
+  if (urls.length > 0) risks.push({ id: "url-in-body", label: "link in body", action: "mova pro reply" });
 
   const baitSignals = [allCaps, baitPhrase, tooManyHash, tooManyEmoji].filter(Boolean).length;
 
@@ -114,18 +138,21 @@ function analyze(text) {
     trimmed, chars, first, last, urls: urls.length, hashes, emojis, capsRatio,
     linkMid, linkEnd, question, softQuestion, saveable, numbers, util, printable, hook,
     bait: baitSignals > 0, baitLevel: baitSignals >= 2 || baitPhrase ? 2 : baitSignals, risks,
+    cliche, hypeHits: hypeHits.length,
   };
 }
 
-// ---------------------------------------------------------------- propensities (relative, 0–1)
+// ---------------------------------------------------------------- propensities (heuristic layer — features → p ∈ [0,1])
+// Isolated from Σ w·p. Fix the mapping here when a gap-log case misses; do not touch W.
 function propensities(A, o, notes) {
   const p = {};
+  const role = o.threadRole || null;
 
   // reply — a real judgment question is the one lever writing controls directly
   p.reply = 0.08;
   if (A.question) { p.reply += 0.35; notes.push("+ reply: real question at the end"); }
   else if (A.softQuestion) { p.reply += 0.12; notes.push("+ reply: '?' without a clear interrogative"); }
-  if (o.isThread) p.reply += 0.04;
+  if (role === "opener") p.reply += 0.04;
 
   // amplify — retweet (1.0) + quote (5.0): quotable takes travel
   p.amplify = 0.06;
@@ -144,10 +171,11 @@ function propensities(A, o, notes) {
   p.shareDm = 0.05 + (A.util ? 0.1 : 0) + (A.numbers && A.chars > 80 ? 0.05 : 0);
   p.shareBtn = 0.05 + (A.util ? 0.08 : 0);
 
-  // click into post (0.4) — the hook's job
+  // click into post (0.4) — the hook's job. Opener-only: For You sees tweet 1, not tweet 4.
   p.click = 0.25;
   if (A.hook) { p.click += 0.15; notes.push("+ click: hook-length first line"); }
-  if (o.isThread) { p.click += 0.1; notes.push("+ click: thread opener"); }
+  if (role === "opener") { p.click += 0.1; notes.push("+ click: thread opener"); }
+  else if (role === "mid") { notes.push("thread mid: not the For You opener — opener click/reply bonuses withheld"); }
   if (A.chars < 40 && !o.hasImage && !o.hasVideo) { p.click -= 0.1; notes.push("− attention: < 40 chars and no media"); }
 
   // continuous dwell — seconds, paid at 0.004/s (small but real)
@@ -171,6 +199,12 @@ function propensities(A, o, notes) {
   // open link (0.2)
   p.openLink = A.linkEnd || A.linkMid ? 0.15 : 0; // real head, kept honest \u2014 but small; the link tax lives in shareCopy
 
+  // light anti-cliché / voice — nudge amplify, do not touch W
+  if (A.cliche) {
+    p.amplify = Math.max(0, p.amplify - 0.04);
+    notes.push("− voice: cliché/hype phrasing (heuristic; not a Phoenix head; weights unchanged)");
+  }
+
   // negative propensities — small p, huge weights; dwell-regret gates amplify these in prod
   if (A.baitLevel >= 2) {
     p.notInterested = 0.05; p.mute = 0.03; p.report = 0.002;
@@ -187,7 +221,8 @@ function propensities(A, o, notes) {
   return p;
 }
 
-// ---------------------------------------------------------------- scoring
+// ---------------------------------------------------------------- scoring (verified layer — p → Σ w·p)
+// Reads weights + propensities + scoring flags. Does not read the draft text.
 function squash(ev) {
   if (ev <= 0) return 0;
   return Math.round((100 * ev) / (ev + CAL.K));
@@ -198,30 +233,7 @@ function sameAuthorMult(nAlready, forceSecond) {
   return ADJ.authorFloor + (1 - ADJ.authorFloor) * Math.pow(ADJ.authorDecay, n);
 }
 
-export function scoreDraft(opts) {
-  const o = {
-    text: opts.text || "",
-    hasImage: !!opts.hasImage,
-    hasVideo: !!opts.hasVideo,
-    vid10: !!opts.vid10,
-    isThread: !!opts.isThread,
-    postsHour: Number.isFinite(Number(opts.postsHour)) ? Math.max(0, Number(opts.postsHour)) : 0,
-    follows: !!opts.follows,
-    forceSecond: !!opts.forceSecond,
-    isRepost: !!opts.isRepost,
-    isReply: !!opts.isReply,
-    mutualShare: Number.isFinite(Number(opts.mutualShare))
-      ? Math.max(0, Math.min(1, Number(opts.mutualShare)))
-      : 0.2,
-  };
-  const A = analyze(o.text);
-  const notes = [];
-
-  if (!A.trimmed) return result(o, A, {}, { ev: 0, heads: zeroHeads() }, notes);
-
-  const p = propensities(A, o, notes);
-
-  // EV per user-visible head group (weights × propensities)
+function expectedValue(p, o) {
   const replyW = W.reply + W.replyMutualBoost * o.mutualShare;
   const heads = {
     reply: { p: r2(p.reply), ev: r3(replyW * p.reply) },
@@ -240,17 +252,52 @@ export function scoreDraft(opts) {
     follow: { p: r2(p.follow), ev: r3(W.followAuthor * p.follow) },
     fav: { p: r2(p.fav), ev: r3(W.fav * p.fav) },
   };
-
   let ev =
     heads.reply.ev + heads.amplify.ev + heads.share.ev + heads.attention.ev + heads.follow.ev + heads.fav.ev;
-
-  // negatives
   const negEv =
     W.neg.notInterested * p.notInterested + W.neg.mute * p.mute + W.neg.report * p.report +
     W.neg.notDwelled * p.notDwelled;
   ev += negEv;
+  return { heads, ev, negEv };
+}
 
-  // clickbait-shaped guard (ClickDwellLowFavRatePenalty): strong hook, empty payload
+function roundPropensities(p) {
+  const out = {};
+  for (const k of Object.keys(p)) out[k] = k === "dwellSec" ? r3(p[k]) : r2(p[k]);
+  return out;
+}
+
+export function scoreDraft(opts) {
+  const o = {
+    text: opts.text || "",
+    hasImage: !!opts.hasImage,
+    hasVideo: !!opts.hasVideo,
+    vid10: !!opts.vid10,
+    isThread: !!opts.isThread || !!opts.threadMid,
+    threadMid: !!opts.threadMid,
+    postsHour: Number.isFinite(Number(opts.postsHour)) ? Math.max(0, Number(opts.postsHour)) : 0,
+    follows: !!opts.follows,
+    forceSecond: !!opts.forceSecond,
+    isRepost: !!opts.isRepost,
+    isReply: !!opts.isReply,
+    mutualShare: Number.isFinite(Number(opts.mutualShare))
+      ? Math.max(0, Math.min(1, Number(opts.mutualShare)))
+      : 0.2,
+  };
+  o.threadRole = o.threadMid ? "mid" : o.isThread ? "opener" : null;
+  const A = analyze(o.text);
+  const notes = [];
+
+  if (!A.trimmed) return result(o, A, {}, { ev: 0, heads: zeroHeads() }, notes);
+
+  const p = propensities(A, o, notes);
+  const S = expectedValue(p, o);
+  let ev = S.ev;
+  const negEv = S.negEv;
+  const heads = S.heads;
+
+  // After Σ w·p: clickbait-shaped guard mirrors ClickDwellLowFavRatePenalty.
+  // Hybrid (reads substance from text + p.click) — labeled, not a weight retune.
   const substance = A.saveable || A.util || (A.numbers && A.chars > 100);
   if (p.click >= 0.35 && !substance && A.chars < 120) {
     ev *= 0.85;
@@ -283,11 +330,15 @@ function result(o, A, p, S, notes) {
   if (monetizable) mNotes.push("payout ∝ qualified impressions (unique Premium home-timeline views, ≥50% visible) — OON reach is the growth lever");
 
   return {
-    engine: "foryou v2 (xai-org/x-algorithm param.rs)",
+    engine: `foryou ${ENGINE_VERSION} (xai-org/x-algorithm param.rs)`,
+    engineVersion: ENGINE_VERSION,
     empty: !A.trimmed,
     chars: A.chars,
     first: A.first,
     last: A.last,
+    threadRole: o.threadRole,
+    layers: { heuristic: "text→p", verified: "Σw·p from param.rs" },
+    propensities: Object.keys(p).length ? roundPropensities(p) : {},
     heads: S.heads,
     ev,
     potential: {
@@ -302,12 +353,13 @@ function result(o, A, p, S, notes) {
       question: A.question, softQuestion: A.softQuestion, saveable: A.saveable, utility: A.util,
       printableFirstLine: A.printable, hookLength: A.hook, numbers: A.numbers,
       linkMid: A.linkMid, linkEnd: A.linkEnd, hashtags: A.hashes, emojis: A.emojis,
+      cliche: !!A.cliche, threadRole: o.threadRole,
     },
     risks: A.risks,
     monetization: { eligibleFormat: monetizable, assumedOriginal: !o.isRepost, notes: mNotes },
     notes,
     disclaimer:
-      "Weights verified from xai-org/x-algorithm (home-mixer/params/param.rs). Text-to-probability mapping is heuristic; production values can drift via feature switches.",
+      "Weights verified from xai-org/x-algorithm (home-mixer/params/param.rs). Text-to-probability mapping is heuristic and isolated from Σ w·p; production values can drift via feature switches.",
   };
 }
 
@@ -316,18 +368,29 @@ function zeroHeads() {
   return { reply: { ...z }, amplify: { ...z }, share: { ...z }, attention: { ...z }, follow: { ...z }, fav: { ...z } };
 }
 
+function formatRisk(r) {
+  if (typeof r === "string") return r;
+  if (!r || !r.label) return "";
+  return r.action ? `${r.label} \u2192 ${r.action}` : r.label;
+}
+
 const r2 = (n) => Math.round(n * 100) / 100;
 const r3 = (n) => Math.round(n * 1000) / 1000;
+/* ==== ENGINE-END ========================================================= */
+
+export { ENGINE_VERSION, analyze, propensities, expectedValue, formatRisk, W, ADJ, CAL };
 
 // ---------------------------------------------------------------- CLI
-const HELP = `foryou score v2 — For You potential for a post draft
+const HELP = `foryou score ${ENGINE_VERSION} — For You potential for a post draft
   --text "..."     the post body (or pipe raw text / JSON with a "text" field)
   --image          has a still image        --video      has video
   --vid10          video is ≥ 10s           --thread     thread opener
+  --thread-mid     mid-thread post (not the opener; opener bonuses withheld)
   --posts N        posts already this hour  --second     force 2nd-post decay
   --follows        score as in-network      --mutuals X  mutual-follower share 0..1 (default 0.2)
   --repost         not original content     --reply      body is a reply (kills monetization)
-JSON out: heads{reply,amplify,share,attention,follow,fav}, ev, potential{inNetwork,outOfNetwork,topicOutOfNetwork}, checks(6), signals, risks, monetization, notes.`;
+JSON out: propensities (text→p), heads{reply,amplify,share,attention,follow,fav} (Σw·p),
+  ev, potential{inNetwork,outOfNetwork,topicOutOfNetwork}, checks(6), signals, risks, monetization, notes.`;
 
 function parseArgs(argv) {
   const o = {};
@@ -338,6 +401,7 @@ function parseArgs(argv) {
     else if (a === "--video") o.hasVideo = true;
     else if (a === "--vid10") o.vid10 = true;
     else if (a === "--thread") o.isThread = true;
+    else if (a === "--thread-mid") o.threadMid = true;
     else if (a === "--posts") o.postsHour = argv[++i];
     else if (a === "--follows") o.follows = true;
     else if (a === "--second") o.forceSecond = true;

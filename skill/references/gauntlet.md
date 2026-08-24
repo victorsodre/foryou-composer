@@ -14,8 +14,10 @@ Run `scripts/score.mjs` on every candidate. A rewrite wins only if **all** hold:
 - `checkCount` ≥ original, target 6/6
 - `risks` is empty
 - `monetization.eligibleFormat` is true (standalone original post — not a reply, not a repost)
-- `heads.share.ev` only rises **without** a URL in the body (link lives in the first reply)
+- `heads.share.ev` only rises **without** a URL in the body (link lives in the first reply). If the JSON risk has `action: "mova pro reply"`, do that — do not argue
+- Thread opener and mid-thread are different jobs. Do not score or rewrite a later tweet as if it were the opener
 - No "clickbait-shaped" note: if the hook got stronger, the payload must have too — the click-dwell/low-fav penalty is real math in prod, and a hotter hook over the same thin body scores better here but dies there
+- Do not juice amplify with cliché/hype phrasing. The 0.2 voice heuristic will mark it; method, not hype
 - First line still passes the teste do leigo
 
 ## Boundaries

@@ -1,6 +1,6 @@
 # For You scoring — source of truth (2026)
 
-Verified against `github.com/xai-org/x-algorithm` (Jan 2026 open-source drop; Phoenix model weights released May 2026). Do not invent extra heads or weights — everything the engine uses is below, and `scripts/score.mjs` implements it.
+Verified against `github.com/xai-org/x-algorithm` (Jan 2026 open-source drop; Phoenix model weights released May 2026). Do not invent extra heads or weights — everything the engine uses is below, and `scripts/score.mjs` implements it. Engine 0.2 isolates **text→p** (`analyze` → `propensities`) from **Σ w·p** (`expectedValue`). Fix the mapping when a gap-log case misses; do not casual-retune `W`.
 
 ## Pipeline (what actually ranks a post)
 
@@ -56,8 +56,10 @@ Also reported (consistent with Phoenix being Grok-based, not a param.rs constant
 - First line 18–90 chars, no URL → click (0.4) + quotable (5.0). "Screenshotable" pays through share/DM.
 - First line 24–110 chars → hook, click ↑
 - Under 40 chars, no media → non-dwell risk
-- Link mid-body kills the read; link belongs in the first reply
+- Link in the body is a click-exit, not a share driver. Risk `{ id: "url-in-body", action: "mova pro reply" }` — the URL belongs in the first reply
+- Thread opener ≠ mid. `--thread` is the For You candidate (opener click/reply bonuses). `--thread-mid` withholds those bonuses — tweet 4 is not the candidate
 - Hook that the body doesn't pay off → click-dwell/low-fav penalty
+- Light anti-cliché / hype-voice list → labeled note + small amplify nudge. Not a Phoenix head. Do not flag this account's "não é X. É Y." voice
 - Like bar: computed, then ignored (0.5)
 
 ## Coach (6 checks)

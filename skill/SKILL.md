@@ -1,10 +1,11 @@
 ---
 name: foryou
 description: >
-  Score X/Twitter posts, drafts, or post ideas with the For You engine
-  (weights verified from the open-source xai-org/x-algorithm, 2026), then run
-  a short Gauntlet Loop and return a higher-scoring publishable version in
-  the same reply — including a monetization read (Original Content Rewards).
+  Score X/Twitter posts, drafts, or post ideas with the For You engine 0.2
+  (weights verified from the open-source xai-org/x-algorithm, 2026; text→p
+  isolated from Σ w·p), then run a short Gauntlet Loop and return a
+  higher-scoring publishable version in the same reply — including a
+  monetization read (Original Content Rewards).
   Use whenever the user pastes an x.com/twitter.com URL, asks to score or
   improve a tweet/post/caption, brings a post idea or raw text for X, asks
   about the X algorithm, reach, impressions, or monetization of a post,
@@ -16,9 +17,9 @@ description: >
 
 Score first. Rewrite second. Both in the **same** user-facing reply.
 
-Two front-ends share this engine: this skill (score → gauntlet → rewrite, automated) and the **Composer** at [victorsodre.github.io/foryou-composer](https://victorsodre.github.io/foryou-composer/) (live manual tuning + editable engine params). If the user wants to experiment by hand, tweak weights, or see heads move while typing, point them to the Composer — its "Copy skill command" button round-trips back here. The Composer's engine block is a verbatim copy of `scripts/score.mjs`; if you ever change the engine, update both (parity check in the Composer README).
+Two front-ends share this engine: this skill (score → gauntlet → rewrite, automated) and the **Composer** at [victorsodre.github.io/foryou-composer](https://victorsodre.github.io/foryou-composer/) (live manual tuning + editable engine params). If the user wants to experiment by hand, tweak weights, or see heads move while typing, point them to the Composer — its "Copy skill command" button round-trips back here. The Composer's engine block is a verbatim copy of `scripts/score.mjs`; if you ever change the engine, update both (`node skill/scripts/self-check.mjs --sync` then `node skill/scripts/self-check.mjs`).
 
-Read `references/algorithm.md` (scoring facts) and `references/gauntlet.md` (rewrite loop) before writing copy. Read `references/monetization.md` when payout, impressions, or eligibility come up. Run the engine — never reimplement the math in prose; the engine exists so that two candidates are compared by the same ruler.
+Read `references/algorithm.md` (scoring facts), `references/gauntlet.md` (rewrite loop), and `references/drift.md` (which layer may move) before writing copy. Read `references/monetization.md` when payout, impressions, or eligibility come up. Read `references/gap-log.md` when comparing predicted vs later outcomes — outcomes stay WAITING until the post matures; do not invent metrics. Run the engine — never reimplement the math in prose; the engine exists so that two candidates are compared by the same ruler. `propensities` is text→p (heuristic). `heads.*.ev` is Σ w·p (param.rs). Do not retune weights because a heuristic p looks off.
 
 ## 1. Ingest
 
@@ -35,7 +36,8 @@ Flags (infer from the input, then state them so wrong guesses are correctable):
 | `--video --vid10` | Attached/planned video ≥ 10s (VQV head only fires at 10s+) |
 | `--video` only | Video shorter than 10s |
 | `--image` | Still / screenshot |
-| `--thread` | Multi-tweet thread opener |
+| `--thread` | Multi-tweet thread **opener** (For You candidate) |
+| `--thread-mid` | Later tweet in a thread — opener click/reply bonuses withheld |
 | `--posts N` | Posts already this hour (default 0 — same-author decay) |
 | `--follows` | Also report in-network; always report OON |
 | `--repost` | Content isn't original (kills monetization, not ranking) |
@@ -48,7 +50,9 @@ Flags (infer from the input, then state them so wrong guesses are correctable):
 node ~/.grok/skills/foryou/scripts/score.mjs --text "THE TEXT" [flags]
 ```
 
-Or pipe JSON with a `text` field. The JSON is the only score source. Key fields: `potential.{inNetwork,outOfNetwork,topicOutOfNetwork}` (0–100), `heads.*.ev` (weight × propensity per head), `checkCount` (coach x/6), `risks`, `monetization`, `notes`.
+Or pipe JSON with a `text` field. The JSON is the only score source. Key fields: `engineVersion`, `propensities` (text→p), `potential.{inNetwork,outOfNetwork,topicOutOfNetwork}` (0–100), `heads.*.ev` (Σ w·p per head), `checkCount` (coach x/6), `risks` (objects; URL-in-body has `action: "mova pro reply"`), `monetization`, `notes`, `threadRole`.
+
+If a risk carries `action: "mova pro reply"`, the rewrite **must** move the URL to the first reply. Do not leave it in the body.
 
 ## 3. Gauntlet (same turn)
 
@@ -63,7 +67,7 @@ Follow `references/gauntlet.md`. One or two rewrites max, one lever per round. R
 5. **Depois** — winner inNetwork + coach. One line on what changed and which head paid for it.
 6. Disclaimer in English, once:
 
-> Weights verified from xai-org/x-algorithm (home-mixer/params/param.rs). Text-to-probability mapping is heuristic; production values can drift via feature switches.
+> Weights verified from xai-org/x-algorithm (home-mixer/params/param.rs). Text-to-probability mapping is heuristic and isolated from Σ w·p; production values can drift via feature switches.
 
 End with a short **Resumo** (Victor scans after lunch).
 

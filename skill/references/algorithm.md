@@ -51,7 +51,7 @@ Also reported (consistent with Phoenix being Grok-based, not a param.rs constant
 ## Text heuristics → which real head they feed
 
 - Ends with a real judgment question → reply (5.0, up to 20 with mutuals)
-- Referencable utility (guia, método, tabela, repo, recurso) → **share via copy link (20.0)** + follow (4.0)
+- Referencable utility (guide, method, table, repository, resource) → **share via copy link (20.0)** + follow (4.0)
 - Code / prompt / list / concrete numbers → dwell (active seconds) + copy-link. "Saveable" is not a head anymore — it pays through these two.
 - First line 18–90 chars, no URL → click (0.4) + quotable (5.0). "Screenshotable" pays through share/DM.
 - First line 24–110 chars → hook, click ↑
@@ -59,7 +59,7 @@ Also reported (consistent with Phoenix being Grok-based, not a param.rs constant
 - Link in the body is a click-exit, not a share driver. Risk `{ id: "url-in-body", action: "mova pro reply" }` — the URL belongs in the first reply
 - Thread opener ≠ mid. `--thread` is the For You candidate (opener click/reply bonuses). `--thread-mid` withholds those bonuses — tweet 4 is not the candidate
 - Hook that the body doesn't pay off → click-dwell/low-fav penalty
-- Light anti-cliché / hype-voice list → labeled note + small amplify nudge. Not a Phoenix head. Do not flag this account's "não é X. É Y." voice
+- Light anti-cliché / hype-voice list → labeled note + small amplify nudge. Not a Phoenix head. Do not flag this account's “this is not X; it is Y” voice pattern.
 - Like bar: computed, then ignored (0.5)
 
 ## Coach (6 checks)
@@ -73,8 +73,8 @@ Also reported (consistent with Phoenix being Grok-based, not a param.rs constant
 
 ## @ovictor posting constraints (do not break these to chase score)
 
-- Body in PT. Technical nouns stay in English.
+- Draft body text in PT-BR. Technical nouns remain in English.
 - No company names, private brands, or internal wiki in the body.
 - No link in the body — link / QT in the first reply.
-- First line must work for a non-dev (teste do leigo).
+- The first line must work for a non-developer (the "layperson test").
 - One idea per post. No "like if / RT this".

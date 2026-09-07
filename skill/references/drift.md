@@ -14,9 +14,9 @@ Ours. Labeled. Maps draft text to action probabilities (`analyze` → `propensit
 
 Known heuristic traps (watch, don't silent-retune W):
 
-- `\brepo\b` inside the utility regex matches "Repo em risco." Share EV on that post is partly a false positive. Log it; don't hide it by shrinking `shareCopyLink`.
+- `\brepo\b` inside the utility regex matches the PT-BR fixture phrase "Repo em risco." (“Repository at risk.”). Share EV on that post is partly a false positive. Log it; don't hide it by shrinking `shareCopyLink`.
 - Thread opener click bonus on a thin body can trip the clickbait-shaped guard. Mid-thread withholds that bonus — opener ≠ mid, including this side effect.
-- The cliché list is short on purpose. Stale phrases miss; overgrown lists start flagging the account's actual voice ("não é X. É Y." is voice, not a template).
+- The cliché list is deliberately short. Stale phrases can be missed; overgrown lists start flagging the account's actual voice. The PT-BR phrase "não é X. É Y." is an intentional voice pattern, not a template.
 
 ## When a gap-log case matures
 

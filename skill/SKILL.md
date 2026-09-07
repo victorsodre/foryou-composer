@@ -27,7 +27,7 @@ Accept any of:
 
 - **X/Twitter URL** → fetch the post (use `x_thread_fetch` or whatever X tool is available; if none, ask for the raw text — one line, then proceed). Use the main post text. Replies/QT are context, not the scored body unless the user points at them.
 - **Raw caption / draft** → score as-is.
-- **Idea** ("quero postar sobre X") → write a first capa, then score that.
+- **Idea** ("I want to post about X") → write a first draft, then score that.
 
 Flags (infer from the input, then state them so wrong guesses are correctable):
 
@@ -62,13 +62,13 @@ Follow `references/gauntlet.md`. One or two rewrites max, one lever per round. R
 
 1. **Score** — inNetwork / outOfNetwork, the head EVs that matter, coach x/6, risks.
 2. **Leitura** — 3–5 lines, honest. Name the weakest head that writing can legally move. If share is weak, remember: copy-link is 20.0, the biggest lever in the file.
-3. **Monetização** — one line: eligible format or not; qualified impressions follow the OON potential. (Skip if the user only asked about ranking.)
-4. **Versão forte** — full capa ready to paste (PT). Optional first reply — QT/link lives there, never in the body.
+3. **Monetization** — one line: eligible format or not; qualified impressions follow the OON potential. (Skip if the user only asked about ranking.)
+4. **Strong version** — a complete, ready-to-paste draft in PT-BR. An optional first reply may hold the QT or link; never put it in the body.
 5. **Depois** — winner inNetwork + coach. One line on what changed and which head paid for it.
 6. Disclaimer in English, once:
 
 > Weights verified from xai-org/x-algorithm (home-mixer/params/param.rs). Text-to-probability mapping is heuristic and isolated from Σ w·p; production values can drift via feature switches.
 
-End with a short **Resumo** (Victor scans after lunch).
+End with a short **Summary** (Victor reviews it after lunch).
 
 Do not dump the raw JSON unless asked. Do not open with a clarifying question if the text is already there — score what exists, flag assumptions inline.

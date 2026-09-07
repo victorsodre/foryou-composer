@@ -18,12 +18,12 @@ Run `scripts/score.mjs` on every candidate. A rewrite wins only if **all** hold:
 - Thread opener and mid-thread are different jobs. Do not score or rewrite a later tweet as if it were the opener
 - No "clickbait-shaped" note: if the hook got stronger, the payload must have too — the click-dwell/low-fav penalty is real math in prod, and a hotter hook over the same thin body scores better here but dies there
 - Do not juice amplify with cliché/hype phrasing. The 0.2 voice heuristic will mark it; method, not hype
-- First line still passes the teste do leigo
+- The first line still passes the layperson test
 
 ## Boundaries
 
 - Same turn. Max **2** rewrite rounds — the third rewrite is always worse, ship the winner.
-- Do not spawn subagents unless the user says "gauntlet fundo".
+- Do not spawn subagents unless the user explicitly asks for a deep gauntlet.
 - Do not invent algorithm weights; the engine is the only score source.
 - Do not add private brand names or a body link to juice share.
 - Stop early if the second rewrite doesn't beat the first on `inNetwork` **or** repeats the same failed trick.
@@ -39,8 +39,8 @@ Run `scripts/score.mjs` on every candidate. A rewrite wins only if **all** hold:
 
 | Weak head | Weight it feeds | Legal lift |
 |-----------|----------------|------------|
-| reply | 5.0 (→20 w/ mutuals) | Real judgment question on the last line — não "curte aí?", mas uma pergunta que pede opinião |
-| share | **20.0** copy-link | Make it referencable: guia, método, tabela, número que a pessoa quer mandar no grupo. Never via URL in body |
+| reply | 5.0 (→20 w/ mutuals) | A real judgment question on the last line — not generic engagement bait, but a question that invites an opinion |
+| share | **20.0** copy-link | Make it referencable: a guide, method, table, or number someone would send to a group. Never via a URL in the body |
 | attention | click 0.4 + dwell 0.004/s | Printable first line 24–90 chars; structure that holds the read (list, code, concrete number) |
 | amplify | quote 5.0 + rt 1.0 | One quotable sentence — a take someone wants to stamp their opinion on |
 | follow | 4.0 | Utility + voice: the post should read like a sample of the account |
@@ -49,5 +49,5 @@ Run `scripts/score.mjs` on every candidate. A rewrite wins only if **all** hold:
 ## When not to rewrite hard
 
 - Original already ≥ 75 in-network and 6/6 — say so, offer a micro-tweak only. Don't sand off the voice to win 2 points.
-- Input is an idea, not copy — write a full capa (and optional first reply), then score that. The gauntlet needs an artifact.
+- Input is an idea, not copy — write a complete draft (and an optional first reply), then score that. The gauntlet needs an artifact.
 - The weakest head is one writing can't move (mutuals share, posting history) — say that honestly instead of torturing the text.

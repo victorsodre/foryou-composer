@@ -1100,7 +1100,10 @@ function applyI18n() {
   document.documentElement.lang = lang === "pt" ? "pt-BR" : "en";
   if ($("engineVer")) $("engineVer").textContent = ENGINE_VERSION;
   document.querySelectorAll("[data-i]").forEach((el) => {
-    const val = t(el.getAttribute("data-i"));
+    const key = el.getAttribute("data-i");
+    const dictionary = I18N[lang];
+    if (key === null || !Object.hasOwn(dictionary, key)) return;
+    const val = dictionary[key];
     if (typeof val === "string") el.innerHTML = val;
   });
   document.querySelectorAll("[data-ph]").forEach((el) => { el.placeholder = t("ph"); });

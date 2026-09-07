@@ -1,6 +1,6 @@
 # For You Composer
 
-A single-file, client-only composer that scores a draft against the **X For You ranking** — engine 0.2, weights verified from the open-source [`xai-org/x-algorithm`](https://github.com/xai-org/x-algorithm) (`home-mixer/params/param.rs`, Jan 2026 drop; Phoenix model May 2026).
+A single-file, client-only drafting tool for X posts. It combines text heuristics with weights documented in the open-source [`xai-org/x-algorithm`](https://github.com/xai-org/x-algorithm) (`home-mixer/params/param.rs`, Jan 2026 drop; Phoenix model May 2026). It is an explanatory model, not a production ranking predictor.
 
 Live (after you push Pages): `https://victorsodre.github.io/foryou-composer/`
 
@@ -26,9 +26,9 @@ JSON isolation: `propensities` is text→p (heuristic). `heads.*.ev` / `ev` are 
 - In-network / out-of-network / topic-OON potential (0–100, squashed EV — never saturates, two candidates always comparable)
 - Six heads with their EV contribution: reply · amplify · share (copy-link is the 20.0) · attention · follow · fav (dimmed — 0.5)
 - Coach checklist (6) from the @ovictor posting protocol
-- Monetization read — Original Content Rewards (Sep 8, 2026): eligible format, reply/repost warnings, bait-kills-payout
+- Monetization-oriented guidance: format, reply/repost warnings, and bait-risk signals. Eligibility and payout rules can change on X.
 - Mute-bait risks + clickbait-shaped warning (mirrors the prod click-dwell/low-fav penalty)
-- URL in the body → risk action `mova pro reply` (click-exit, not a share driver)
+- URL in the body → a risk note to move it to the first reply (click-exit, not a share driver)
 - Thread opener ≠ mid (`--thread` vs `--thread-mid`)
 - Light anti-cliché / hype-voice note (heuristic, not a Phoenix head)
 - **Engine params configurator**: every weight editable live, reset to param.rs. Custom params stay in the tab — the skill always runs stock.
@@ -40,13 +40,13 @@ English-first UI, toggle to PT-BR. No analytics. No `localStorage`. No network c
 
 > Weights verified from xai-org/x-algorithm (home-mixer/params/param.rs). Text-to-probability mapping is heuristic and isolated from Σ w·p; production values can drift via feature switches.
 
-Verified in the repo: the full weight table (positives, negatives), same-author decay `0.25 + 0.75·0.5^n`, OON ×0.75, topic-OON ×0.5, dwell-regret gate values, click-dwell/low-fav penalty params, Phoenix head list. **Not** in the repo: our text→probability heuristics (labeled as ours), and the Grok sentiment claim (reported, consistent with Phoenix being Grok-based).
+Verified in the repo: the full weight table (positives, negatives), same-author decay `0.25 + 0.75·0.5^n`, OON ×0.75, topic-OON ×0.5, dwell-regret gate values, click-dwell/low-fav penalty params, and the Phoenix head list. The text-to-probability heuristics are this project's own labeled interpretation; they are not source code from X.
 
 Dead 2023 numbers you'll still see in articles — not used here: bookmark/screenshot heads, "reply 13.5", "reply engaged by author 75".
 
 See [CHANGELOG.md](./CHANGELOG.md), [skill/references/drift.md](./skill/references/drift.md), and [skill/references/gap-log.md](./skill/references/gap-log.md). Gap-log outcomes stay `WAITING` until a post matures — no fake metrics.
 
-**0.2 (2026-08-24).** Weights unchanged. Isolate text→p from Σ w·p. Thread opener ≠ mid. URL-in-body risk carries action `mova pro reply`. Light anti-cliché/voice heuristic. Gap-log scaffold + self-check.
+**0.2 (2026-08-24).** Weights unchanged. Isolates text→p from Σ w·p. Distinguishes a thread opener from a mid-thread post. Adds a URL-in-body risk note, a light anti-cliché/voice heuristic, a gap-log scaffold, and a self-check.
 
 **0.1 (2026-08-14) — first public release.** A URL in the body no longer earns share EV — readers click out instead of copy-linking. It now raises a `link in body` risk instead. The `openLink` head (+0.2, real in param.rs) is kept, honest and small. The link belongs in the first reply.
 
